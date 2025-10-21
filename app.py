@@ -784,4 +784,9 @@ def time_ago_filter(dt):
         return 'Just now'
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    if os.environ.get('FLASK_ENV') == 'production':
+        socketio.run(app, host='0.0.0.0', port=port)
+    else:
+        socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
     app.run(debug=True, host='0.0.0.0', port=5000)
