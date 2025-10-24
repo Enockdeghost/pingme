@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block title %}Karibu - Vendor Digitization App{% endblock %}
+
+{% block extra_css %}
+<style>
+.hero-section {
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+    color: white;
+    padding: 100px 0;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-content {
+    max-width: 800px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-title {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease forwards;
+}
+
+.hero-subtitle {
+    font-size: 1.3rem;
+    margin-bottom: 2rem;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease 0.2s forwards;
+}
+
+.hero-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease 0.4s forwards;
+}
+
+.btn-hero {
+    padding: 12px 30px;
+    border-radius: 50px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: white;
+    border: 2px solid white;
+}
+
+.features-section {
+    padding: 80px 0;
+    background: var(--background);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.feature-card {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 15px;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    opacity: 0;
+    transform: translateY(30px);
+}
+
+.feature-card.lazyloaded {
+    animation: fadeInUp 0.6s ease forwards;
+}
+
+.feature-icon {
+    font-size: 3rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+}
+
+.feature-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .hero-title {
+        font-size: 2.5rem;
+    }
+    
+    .hero-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn-hero {
+        width: 200px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="hero-content">
+        <h1 class="hero-title">Wekeza Katika Ujasiriamali Wako Kwa Teknolojia</h1>
+        <p class="hero-subtitle">
+            Endesha biashara yako kwa ufanisi zaidi kwa kutumia mfumo wetu wa kidijitali. 
+            Shiriki bidhaa, fuata mauzo, na uangalie mapato kwa urahisi.
+        </p>
+        <div class="hero-buttons">
+            {% if not current_user.is_authenticated %}
+            <a href="{{ url_for('register') }}" class="btn-hero btn-primary">
+                Anza Sasa Hivi
+            </a>
+            <a href="{{ url_for('login') }}" class="btn-hero btn-secondary">
+                Ingia kwenye Akaunti
+            </a>
+            {% else %}
+            <a href="{{ url_for('dashboard') }}" class="btn-hero btn-primary">
+                Nenda Dashibodi
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="features-section">
+    <div class="features-grid">
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <h3>Uchambuzi wa Mauzo</h3>
+            <p>Fuata mauzo yako kwa wakati halisi na upate maarifa ya kina kuhusu tabia ya wateja wako.</p>
+        </div>
+
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-box-open"></i>
+            </div>
+            <h3>Usimamizi wa Bidhaa</h3>
+            <p>Dhibiti usimbwaji wa bidhaa zako, weka alama za bei na ufuate mabadiliko ya soko.</p>
+        </div>
+
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-mobile-alt"></i>
+            </div>
+            <h3>Malipo ya Mkononi</h3>
+            <p>Pokea malipo kwa urahisi kupitia M-Pesa, Tigo Pesa na mitandao mingine ya malipo.</p>
+        </div>
+
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <h3>Taarifa za Kiotomatiki</h3>
+            <p>Pata taarifa moja kwa moja unapokaribia kumaliza bidhaa au kuna mauzo mapya.</p>
+        </div>
+
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-cloud"></i>
+            </div>
+            <h3>Hifadhi Wingu</h3>
+            <p>Data yako imehifadhiwa kwenye wingu kwa usalama na upatikanaji popote pale.</p>
+        </div>
+
+        <div class="feature-card" data-lazy>
+            <div class="feature-icon">
+                <i class="fas fa-sync"></i>
+            </div>
+            <h3>Offline Mode</h3>
+            <p>Endelea kufanya kazi hata kwenye maeneo yenye mtandao duni.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Stats Section -->
+<section class="stats-section" style="background: var(--primary); color: white; padding: 60px 0;">
+    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem; max-width: 1200px; margin: 0 auto; text-align: center;">
+        <div class="stat-item">
+            <h3 style="font-size: 2.5rem; margin-bottom: 0.5rem;">500+</h3>
+            <p>Wafanyabiashara Wanatumia</p>
+        </div>
+        <div class="stat-item">
+            <h3 style="font-size: 2.5rem; margin-bottom: 0.5rem;">TZS 2B+</h3>
+            <p>Mauzo Yaliyofanyika</p>
+        </div>
+        <div class="stat-item">
+            <h3 style="font-size: 2.5rem; margin-bottom: 0.5rem;">15,000+</h3>
+            <p>Bidhaa Zilizosimikwa</p>
+        </div>
+        <div class="stat-item">
+            <h3 style="font-size: 2.5rem; margin-bottom: 0.5rem;">98%</h3>
+            <p>Wateja Walioridhika</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize lazy loading for feature cards
+    const lazyObserver = new LazyLoad({
+        elements_selector: "[data-lazy]",
+        threshold: 100,
+        callback_loaded: function(el) {
+            el.classList.add('lazyloaded');
+        }
+    });
+});
+</script>
+{% endblock %}

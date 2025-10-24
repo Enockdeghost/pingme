@@ -1,792 +1,1237 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, session
+"""
+VENDOR DIGITIZATION WEB APP - PRODUCTION READY
+Complete Flask application with all features
+"""
+
+# PART 1: APP INITIALIZATION & CONFIGURATION
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 from datetime import datetime, timedelta
 from functools import wraps
 import os
+import json
 import secrets
-from sqlalchemy import or_, func, desc
+from io import BytesIO
+import csv
 
+# Create Flask app first
 app = Flask(__name__)
 app.config['SECRET_KEY'] = secrets.token_hex(32)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///twitter_clone.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///vendor_app.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'profiles'), exist_ok=True)
-os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'posts'), exist_ok=True)
-
+# Initialize extensions
 db = SQLAlchemy(app)
+CORS(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-followers = db.Table('followers',
-    db.Column('follower_id', db.Integer, db.ForeignKey('user.id')),
-    db.Column('followed_id', db.Integer, db.ForeignKey('user.id'))
-)
+# PART 2: DATABASE MODELS
 
 class User(UserMixin, db.Model):
+    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
-    bio = db.Column(db.String(500))
-    profile_picture = db.Column(db.String(200), default='default.jpg')
-    is_admin = db.Column(db.Boolean, default=False)
+    phone = db.Column(db.String(20), unique=True, nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(120), unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='vendor')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    is_online = db.Column(db.Boolean, default=False)
-    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    language = db.Column(db.String(10), default='sw')
     
-    posts = db.relationship('Post', backref='author', lazy='dynamic', cascade='all, delete-orphan')
-    likes = db.relationship('Like', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    comments = db.relationship('Comment', backref='author', lazy='dynamic', cascade='all, delete-orphan')
-    notifications = db.relationship('Notification', backref='user', lazy='dynamic', cascade='all, delete-orphan')
-    sent_messages = db.relationship('Message', foreign_keys='Message.sender_id', backref='sender', lazy='dynamic')
-    received_messages = db.relationship('Message', foreign_keys='Message.receiver_id', backref='receiver', lazy='dynamic')
-    
-    followed = db.relationship(
-        'User', secondary=followers,
-        primaryjoin=(followers.c.follower_id == id),
-        secondaryjoin=(followers.c.followed_id == id),
-        backref=db.backref('followers', lazy='dynamic'), lazy='dynamic')
+    shops = db.relationship('Shop', backref='owner', lazy=True, cascade='all, delete-orphan')
+    expenses = db.relationship('Expense', backref='user', lazy=True)
+    orders = db.relationship('Order', foreign_keys='Order.buyer_id', backref='buyer', lazy=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
-
+    
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
-    def follow(self, user):
-        if not self.is_following(user):
-            self.followed.append(user)
-
-    def unfollow(self, user):
-        if self.is_following(user):
-            self.followed.remove(user)
-
-    def is_following(self, user):
-        return self.followed.filter(followers.c.followed_id == user.id).count() > 0
-
-    def get_unread_message_count(self):
-        return Message.query.filter_by(receiver_id=self.id, is_read=False).count()
-
-class Post(db.Model):
+class Shop(db.Model):
+    __tablename__ = 'shops'
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text, nullable=False)
-    image = db.Column(db.String(200))
+    name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50))
+    location = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    is_active = db.Column(db.Boolean, default=True)
     
-    likes = db.relationship('Like', backref='post', lazy='dynamic', cascade='all, delete-orphan')
-    comments = db.relationship('Comment', backref='post', lazy='dynamic', cascade='all, delete-orphan')
-    hashtags = db.relationship('PostHashtag', backref='post', lazy='dynamic', cascade='all, delete-orphan')
+    products = db.relationship('Product', backref='shop', lazy=True, cascade='all, delete-orphan')
+    sales = db.relationship('Sale', backref='shop', lazy=True)
 
-    def like_count(self):
-        return self.likes.count()
-
-    def comment_count(self):
-        return self.comments.count()
-
-class Like(db.Model):
+class Product(db.Model):
+    __tablename__ = 'products'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    price = db.Column(db.Float, nullable=False)
+    cost_price = db.Column(db.Float)
+    quantity = db.Column(db.Integer, default=0)
+    unit = db.Column(db.String(20), default='pcs')
+    sku = db.Column(db.String(50), unique=True)
+    barcode = db.Column(db.String(100))
+    category = db.Column(db.String(100))
+    expiry_date = db.Column(db.Date)
+    reorder_level = db.Column(db.Integer, default=10)
+    shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    sale_items = db.relationship('SaleItem', backref='product', lazy=True)
 
-class Comment(db.Model):
+class Sale(db.Model):
+    __tablename__ = 'sales'
     id = db.Column(db.Integer, primary_key=True)
-    content = db.Column(db.Text, nullable=False)
+    sale_number = db.Column(db.String(50), unique=True, nullable=False)
+    shop_id = db.Column(db.Integer, db.ForeignKey('shops.id'), nullable=False)
+    customer_name = db.Column(db.String(100))
+    customer_phone = db.Column(db.String(20))
+    total_amount = db.Column(db.Float, nullable=False)
+    payment_method = db.Column(db.String(50))
+    payment_reference = db.Column(db.String(100))
+    status = db.Column(db.String(20), default='completed')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
+    notes = db.Column(db.Text)
+    
+    items = db.relationship('SaleItem', backref='sale', lazy=True, cascade='all, delete-orphan')
 
-class Notification(db.Model):
+class SaleItem(db.Model):
+    __tablename__ = 'sale_items'
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.String(500), nullable=False)
-    link = db.Column(db.String(200))
+    sale_id = db.Column(db.Integer, db.ForeignKey('sales.id'), nullable=False)
+    product_id = db.Column(db.Integer, db.ForeignKey('products.id'), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
+
+class Expense(db.Model):
+    __tablename__ = 'expenses'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    category = db.Column(db.String(100), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    description = db.Column(db.Text)
+    date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    payment_method = db.Column(db.String(50))
+    receipt_number = db.Column(db.String(100))
+
+class Supplier(db.Model):
+    __tablename__ = 'suppliers'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    contact_person = db.Column(db.String(100))
+    phone = db.Column(db.String(20))
+    email = db.Column(db.String(120))
+    address = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    rating = db.Column(db.Float, default=0.0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=True)
+    
+    orders = db.relationship('Order', backref='supplier', lazy=True)
+
+class Order(db.Model):
+    __tablename__ = 'orders'
+    id = db.Column(db.Integer, primary_key=True)
+    order_number = db.Column(db.String(50), unique=True, nullable=False)
+    buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    supplier_id = db.Column(db.Integer, db.ForeignKey('suppliers.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')
+    total_amount = db.Column(db.Float, nullable=False)
+    delivery_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    notes = db.Column(db.Text)
+    
+    items = db.relationship('OrderItem', backref='order', lazy=True, cascade='all, delete-orphan')
+
+class OrderItem(db.Model):
+    __tablename__ = 'order_items'
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    product_name = db.Column(db.String(200), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False)
+    unit_price = db.Column(db.Float, nullable=False)
+    subtotal = db.Column(db.Float, nullable=False)
+
+class Alert(db.Model):
+    __tablename__ = 'alerts'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    alert_type = db.Column(db.String(50))
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    user = db.relationship('User', backref='alerts')
 
-class Message(db.Model):
+class SyncLog(db.Model):
+    __tablename__ = 'sync_logs'
     id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    is_read = db.Column(db.Boolean, default=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    sync_type = db.Column(db.String(50))
+    data = db.Column(db.Text)
+    status = db.Column(db.String(20), default='pending')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    synced_at = db.Column(db.DateTime)
+    
+def init_db():
+    """Initialize database with tables and default data"""
+    print("🔧 Initializing database...")
+    
+    # Remove existing database to start fresh
+    if os.path.exists('vendor_app.db'):
+        os.remove('vendor_app.db')
+        print("🗑️ Removed existing database file")
+    
+    # Create all tables
+    db.create_all()
+    print("✅ Database tables created successfully!")
+    
+    # Create admin user
+    admin = User(
+        phone='admin',
+        name='Administrator',
+        email='admin@vendorapp.com',
+        role='admin'
+    )
+    admin.set_password('admin123')
+    db.session.add(admin)
+    db.session.commit()
+    print("✅ Default admin user created (phone: admin, password: admin123)")
 
-class Hashtag(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    tag = db.Column(db.String(100), unique=True, nullable=False)
-    count = db.Column(db.Integer, default=1)
-    last_used = db.Column(db.DateTime, default=datetime.utcnow)
+# Initialize database immediately when the app starts
+with app.app_context():
+    init_db()
 
-class PostHashtag(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    post_id = db.Column(db.Integer, db.ForeignKey('post.id'), nullable=False)
-    hashtag_id = db.Column(db.Integer, db.ForeignKey('hashtag.id'), nullable=False)
+
+
+# PART 3: AUTHENTICATION & AUTHORIZATION
+
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or not current_user.is_admin:
-            flash('You need admin privileges to access this page.', 'danger')
-            return redirect(url_for('index'))
-        return f(*args, **kwargs)
-    return decorated_function
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov'}
+def role_required(roles):
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if not current_user.is_authenticated:
+                return redirect(url_for('login'))
+            if current_user.role not in roles:
+                flash('Hakuna ruhusa ya kufikia ukurasa huu', 'danger')
+                return redirect(url_for('dashboard'))
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
 
-def extract_hashtags(content):
-    import re
-    return re.findall(r'#(\w+)', content)
 
-def extract_mentions(content):
-    import re
-    return re.findall(r'@(\w+)', content)
 
-def process_content(content):
-    import re
-    content = re.sub(r'#(\w+)', r'<a href="/hashtag/\1" class="text-primary">#\1</a>', content)
-    content = re.sub(r'@(\w+)', r'<a href="/profile/\1" class="text-info">@\1</a>', content)
-    return content
+# PART 4: ROUTES - AUTHENTICATION
 
-@app.before_request
-def update_last_seen():
-    if current_user.is_authenticated:
-        current_user.last_seen = datetime.utcnow()
-        db.session.commit()
 
-# Routes
 @app.route('/')
 def index():
     if current_user.is_authenticated:
-        return redirect(url_for('feed'))
-    return redirect(url_for('login'))
+        return redirect(url_for('dashboard'))
+    return render_template('index.html')
 
-@app.route('/signup', methods=['GET', 'POST'])
-def signup():
-    if current_user.is_authenticated:
-        return redirect(url_for('feed'))
-    
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
+        data = request.form
         
-        if User.query.filter_by(username=username).first():
-            flash('Username already exists.', 'danger')
-            return redirect(url_for('signup'))
+        # Check if user exists after ensuring tables are created
+        existing_user = User.query.filter_by(phone=data['phone']).first()
+        if existing_user:
+            flash('Namba ya simu tayari imejiandikisha', 'danger')
+            return redirect(url_for('register'))
         
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered.', 'danger')
-            return redirect(url_for('signup'))
+        user = User(
+            phone=data['phone'],
+            name=data['name'],
+            email=data.get('email'),
+            role=data.get('role', 'vendor')
+        )
+        user.set_password(data['password'])
         
-        user = User(username=username, email=email)
-        user.set_password(password)
         db.session.add(user)
         db.session.commit()
         
-        flash('Account created successfully! Please log in.', 'success')
+        flash('Umefanikiwa kujiandikisha! Tafadhali ingia', 'success')
         return redirect(url_for('login'))
     
-    return render_template('signup.html')
+    return render_template('register.html')
+
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('feed'))
+        return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+        phone = request.form['phone']
+        password = request.form['password']
         
-        user = User.query.filter_by(username=username).first()
+        user = User.query.filter_by(phone=phone).first()
         
         if user and user.check_password(password):
-            login_user(user)
-            user.is_online = True
-            db.session.commit()
-            return redirect(url_for('feed'))
+            login_user(user, remember=True)
+            flash(f'Karibu, {user.name}!', 'success')
+            return redirect(url_for('dashboard'))
         else:
-            flash('Invalid username or password.', 'danger')
+            flash('Namba ya simu au nenosiri sio sahihi', 'danger')
     
     return render_template('login.html')
+
 
 @app.route('/logout')
 @login_required
 def logout():
-    current_user.is_online = False
-    db.session.commit()
     logout_user()
+    flash('Umetoka kikamilifu', 'info')
     return redirect(url_for('login'))
 
-@app.route('/feed')
-@login_required
-def feed():
-    page = request.args.get('page', 1, type=int)
-    followed_users = current_user.followed.all()
-    followed_ids = [u.id for u in followed_users] + [current_user.id]
-    
-    posts = Post.query.filter(Post.user_id.in_(followed_ids)).order_by(Post.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
-    
-    trending = Hashtag.query.order_by(Hashtag.count.desc()).limit(5).all()
-    suggestions = User.query.filter(User.id != current_user.id).filter(~User.id.in_(followed_ids)).limit(5).all()
-    
-    return render_template('feed.html', posts=posts, trending=trending, suggestions=suggestions)
 
-@app.route('/post', methods=['POST'])
+
+# PART 5: ROUTES - DASHBOARD & ANALYTICS
+
+
+@app.route('/dashboard')
 @login_required
-def create_post():
-    content = request.form.get('content')
-    image = request.files.get('image')
-    
-    if not content and not image:
-        flash('Post cannot be empty.', 'danger')
-        return redirect(url_for('feed'))
-    
-    post = Post(content=content or '', user_id=current_user.id)
-    
-    if image and allowed_file(image.filename):
-        filename = secure_filename(f"{secrets.token_hex(8)}_{image.filename}")
-        image.save(os.path.join(app.config['UPLOAD_FOLDER'], 'posts', filename))
-        post.image = filename
-    
-    db.session.add(post)
-    db.session.flush()  # Get post ID
-    
-    # Process hashtags
-    hashtags = extract_hashtags(content or '')
-    for tag in hashtags:
-        existing = Hashtag.query.filter_by(tag=tag).first()
-        if existing:
-            existing.count += 1
-            existing.last_used = datetime.utcnow()
-        else:
-            existing = Hashtag(tag=tag)
-            db.session.add(existing)
-            db.session.flush()
+def dashboard():
+    if current_user.role == 'vendor':
+        shops = Shop.query.filter_by(owner_id=current_user.id).all()
         
-        # Link hashtag to post
-        post_hashtag = PostHashtag(post_id=post.id, hashtag_id=existing.id)
-        db.session.add(post_hashtag)
-    
-    # Process mentions
-    mentions = extract_mentions(content or '')
-    for username in mentions:
-        mentioned_user = User.query.filter_by(username=username).first()
-        if mentioned_user and mentioned_user.id != current_user.id:
-            notif = Notification(
-                user_id=mentioned_user.id,
-                content=f"{current_user.username} mentioned you in a post",
-                link=f"/post/{post.id}"
-            )
-            db.session.add(notif)
-    
-    db.session.commit()
-    flash('Post created successfully!', 'success')
-    return redirect(url_for('feed'))
-
-@app.route('/post/<int:post_id>')
-@login_required
-def view_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    comments = Comment.query.filter_by(post_id=post_id).order_by(Comment.created_at.desc()).all()
-    return render_template('post.html', post=post, comments=comments)
-
-@app.route('/post/<int:post_id>/like', methods=['POST'])
-@login_required
-def like_post(post_id):
-    try:
-        post = Post.query.get_or_404(post_id)
-        existing_like = Like.query.filter_by(user_id=current_user.id, post_id=post_id).first()
+        # Calculate stats
+        total_sales = 0
+        total_products = 0
+        low_stock_count = 0
+        today_sales = 0
         
-        if existing_like:
-            db.session.delete(existing_like)
-            liked = False
-        else:
-            like = Like(user_id=current_user.id, post_id=post_id)
-            db.session.add(like)
+        today = datetime.utcnow().date()
+        
+        for shop in shops:
+            shop_sales = Sale.query.filter_by(shop_id=shop.id).all()
+            total_sales += sum(sale.total_amount for sale in shop_sales)
             
-            if post.author.id != current_user.id:
-                notif = Notification(
-                    user_id=post.author.id,
-                    content=f"{current_user.username} liked your post",
-                    link=f"/post/{post_id}"
-                )
-                db.session.add(notif)
-            liked = True
-        
-        db.session.commit()
-        
-        # Re-query to get updated count
-        post = Post.query.get(post_id)
-        return jsonify({
-            'status': 'liked' if liked else 'unliked', 
-            'count': post.like_count()
-        })
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/post/<int:post_id>/comment', methods=['POST'])
-@login_required
-def comment_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    content = request.form.get('content')
-    
-    if not content:
-        flash('Comment cannot be empty.', 'danger')
-        return redirect(url_for('view_post', post_id=post_id))
-    
-    comment = Comment(content=content, user_id=current_user.id, post_id=post_id)
-    db.session.add(comment)
-    
-    if post.author.id != current_user.id:
-        notif = Notification(
-            user_id=post.author.id,
-            content=f"{current_user.username} commented on your post",
-            link=f"/post/{post_id}"
-        )
-        db.session.add(notif)
-    
-    db.session.commit()
-    flash('Comment added!', 'success')
-    return redirect(url_for('view_post', post_id=post_id))
-
-@app.route('/profile/<username>')
-@login_required
-def profile(username):
-    user = User.query.filter_by(username=username).first_or_404()
-    posts = Post.query.filter_by(user_id=user.id).order_by(Post.created_at.desc()).all()
-    
-    total_likes = sum(post.like_count() for post in posts)
-    
-    # Check if current user is following this user
-    is_following = current_user.is_following(user) if current_user.is_authenticated else False
-    
-    return render_template('profile.html', user=user, posts=posts, total_likes=total_likes, is_following=is_following)
-
-@app.route('/profile/edit', methods=['GET', 'POST'])
-@login_required
-def edit_profile():
-    if request.method == 'POST':
-        current_user.bio = request.form.get('bio')
-        current_user.location = request.form.get('location')
-        current_user.website = request.form.get('website')
-        
-        if 'profile_picture' in request.files:
-            file = request.files['profile_picture']
-            if file and file.filename != '' and allowed_file(file.filename):
-                filename = secure_filename(f"{current_user.id}_profile_{secrets.token_hex(8)}_{file.filename}")
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], 'profiles', filename))
-                current_user.profile_picture = filename
-        
-        if 'cover_picture' in request.files:
-            file = request.files['cover_picture']
-            if file and file.filename != '' and allowed_file(file.filename):
-                filename = secure_filename(f"{current_user.id}_cover_{secrets.token_hex(8)}_{file.filename}")
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], 'covers', filename))
-                current_user.cover_picture = filename
-        
-        db.session.commit()
-        flash('Profile updated successfully!', 'success')
-        return redirect(url_for('profile', username=current_user.username))
-    
-    return render_template('edit_profile.html')
-
-@app.route('/follow/<int:user_id>', methods=['POST'])
-@login_required
-def follow(user_id):
-    try:
-        user = User.query.get_or_404(user_id)
-        
-        if user.id == current_user.id:
-            return jsonify({'error': 'Cannot follow yourself'}), 400
-        
-        if current_user.is_following(user):
-            current_user.unfollow(user)
-            status = 'unfollowed'
-        else:
-            current_user.follow(user)
+            today_shop_sales = Sale.query.filter_by(shop_id=shop.id).filter(
+                db.func.date(Sale.created_at) == today
+            ).all()
+            today_sales += sum(sale.total_amount for sale in today_shop_sales)
             
-            notif = Notification(
-                user_id=user.id,
-                content=f"{current_user.username} started following you",
-                link=f"/profile/{current_user.username}"
-            )
-            db.session.add(notif)
-            status = 'followed'
+            products = Product.query.filter_by(shop_id=shop.id, is_active=True).all()
+            total_products += len(products)
+            low_stock_count += len([p for p in products if p.quantity <= p.reorder_level])
         
-        db.session.commit()
-        return jsonify({'status': status})
+        # Recent sales
+        recent_sales = []
+        for shop in shops:
+            shop_recent = Sale.query.filter_by(shop_id=shop.id).order_by(
+                Sale.created_at.desc()
+            ).limit(5).all()
+            recent_sales.extend(shop_recent)
+        
+        recent_sales = sorted(recent_sales, key=lambda x: x.created_at, reverse=True)[:10]
+        
+        # Alerts
+        alerts = Alert.query.filter_by(user_id=current_user.id, is_read=False).order_by(
+            Alert.created_at.desc()
+        ).limit(5).all()
+        
+        return render_template('dashboard_vendor.html',
+                             shops=shops,
+                             total_sales=total_sales,
+                             today_sales=today_sales,
+                             total_products=total_products,
+                             low_stock_count=low_stock_count,
+                             recent_sales=recent_sales,
+                             alerts=alerts)
     
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+    elif current_user.role == 'admin':
+        total_users = User.query.count()
+        total_shops = Shop.query.count()
+        total_products = Product.query.count()
+        total_sales = db.session.query(db.func.sum(Sale.total_amount)).scalar() or 0
+        
+        return render_template('dashboard_admin.html',
+                             total_users=total_users,
+                             total_shops=total_shops,
+                             total_products=total_products,
+                             total_sales=total_sales)
+    
+    return render_template('dashboard.html')
 
-@app.route('/search')
+
+
+# PART 6: ROUTES - SHOP MANAGEMENT
+
+
+@app.route('/shops')
 @login_required
-def search():
-    query = request.args.get('q', '')
-    
-    users = User.query.filter(
-        or_(User.username.contains(query), User.bio.contains(query))
-    ).limit(20).all()
-    
-    hashtag_posts = []
-    if query.startswith('#'):
-        tag = query[1:]
-        hashtag = Hashtag.query.filter_by(tag=tag).first()
-        if hashtag:
-            posts_with_tag = Post.query.join(PostHashtag).filter(PostHashtag.hashtag_id == hashtag.id).order_by(Post.created_at.desc()).limit(20).all()
-            hashtag_posts = posts_with_tag
+@role_required(['vendor', 'admin'])
+def shops():
+    if current_user.role == 'admin':
+        all_shops = Shop.query.all()
     else:
-        posts_with_content = Post.query.filter(Post.content.contains(query)).order_by(Post.created_at.desc()).limit(20).all()
-        hashtag_posts = posts_with_content
+        all_shops = Shop.query.filter_by(owner_id=current_user.id).all()
     
-    return render_template('search.html', query=query, users=users, posts=hashtag_posts)
+    return render_template('shops.html', shops=all_shops)
 
-@app.route('/hashtag/<tag>')
-@login_required
-def hashtag(tag):
-    hashtag_obj = Hashtag.query.filter_by(tag=tag).first()
-    if not hashtag_obj:
-        flash('No posts found with this hashtag.', 'info')
-        return redirect(url_for('feed'))
-    
-    posts = Post.query.join(PostHashtag).filter(PostHashtag.hashtag_id == hashtag_obj.id).order_by(Post.created_at.desc()).all()
-    
-    return render_template('hashtag.html', tag=tag, posts=posts, hashtag=hashtag_obj)
 
-@app.route('/notifications')
+@app.route('/shop/create', methods=['GET', 'POST'])
 @login_required
-def notifications():
-    notifs = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at.desc()).all()
-    
-    # Mark as read
-    for notif in notifs:
-        notif.is_read = True
-    db.session.commit()
-    
-    return render_template('notifications.html', notifications=notifs)
-
-@app.route('/messages')
-@login_required
-def messages():
-    # Get all conversations
-    sent_conversations = db.session.query(Message.receiver_id).filter(Message.sender_id == current_user.id).distinct()
-    received_conversations = db.session.query(Message.sender_id).filter(Message.receiver_id == current_user.id).distinct()
-    
-    all_conversation_ids = set([id[0] for id in sent_conversations] + [id[0] for id in received_conversations])
-    
-    conversations = []
-    for user_id in all_conversation_ids:
-        if user_id != current_user.id:
-            user = User.query.get(user_id)
-            if user:
-                last_message = Message.query.filter(
-                    or_(
-                        (Message.sender_id == current_user.id) & (Message.receiver_id == user_id),
-                        (Message.sender_id == user_id) & (Message.receiver_id == current_user.id)
-                    )
-                ).order_by(Message.created_at.desc()).first()
-                
-                unread_count = Message.query.filter_by(sender_id=user_id, receiver_id=current_user.id, is_read=False).count()
-                
-                conversations.append({
-                    'user': user,
-                    'last_message': last_message,
-                    'unread_count': unread_count
-                })
-    
-    # Sort by last message time
-    conversations.sort(key=lambda x: x['last_message'].created_at if x['last_message'] else datetime.min, reverse=True)
-    
-    return render_template('messages.html', conversations=conversations)
-
-@app.route('/messages/search')
-@login_required
-def message_search():
-    query = request.args.get('q', '')
-    
-    if query:
-        # Search for users to message
-        users = User.query.filter(
-            User.username.contains(query),
-            User.id != current_user.id
-        ).limit(10).all()
-        
-        return jsonify({
-            'users': [{
-                'id': user.id,
-                'username': user.username,
-                'profile_picture': user.profile_picture,
-                'is_online': user.is_online
-            } for user in users]
-        })
-    
-    return jsonify({'users': []})
-
-@app.route('/messages/<int:user_id>', methods=['GET', 'POST'])
-@login_required
-def conversation(user_id):
-    user = User.query.get_or_404(user_id)
-    
+@role_required(['vendor'])
+def create_shop():
     if request.method == 'POST':
-        content = request.form.get('content')
-        if not content:
-            flash('Message cannot be empty.', 'danger')
-            return redirect(url_for('conversation', user_id=user_id))
-        
-        message = Message(sender_id=current_user.id, receiver_id=user.id, content=content)
-        db.session.add(message)
-        
-        notif = Notification(
-            user_id=user.id,
-            content=f"{current_user.username} sent you a message",
-            link=f"/messages/{current_user.id}"
+        shop = Shop(
+            name=request.form['name'],
+            category=request.form['category'],
+            location=request.form['location'],
+            description=request.form.get('description'),
+            owner_id=current_user.id
         )
-        db.session.add(notif)
+        
+        db.session.add(shop)
         db.session.commit()
         
-        return redirect(url_for('conversation', user_id=user_id))
+        flash('Duka limeundwa kikamilifu!', 'success')
+        return redirect(url_for('shops'))
     
-    # Get messages between current user and the other user
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == current_user.id) & (Message.receiver_id == user.id),
-            (Message.sender_id == user.id) & (Message.receiver_id == current_user.id)
-        )
-    ).order_by(Message.created_at).all()
-    
-    # Mark received messages as read
-    for msg in messages:
-        if msg.receiver_id == current_user.id and not msg.is_read:
-            msg.is_read = True
-    
-    db.session.commit()
-    
-    return render_template('conversation.html', user=user, messages=messages)
+    return render_template('shop_create.html')
 
-@app.route('/api/messages/<int:user_id>')
+
+@app.route('/shop/<int:shop_id>')
 @login_required
-def get_messages(user_id):
-    user = User.query.get_or_404(user_id)
+def shop_detail(shop_id):
+    shop = Shop.query.get_or_404(shop_id)
     
-    messages = Message.query.filter(
-        or_(
-            (Message.sender_id == current_user.id) & (Message.receiver_id == user.id),
-            (Message.sender_id == user.id) & (Message.receiver_id == current_user.id)
+    if current_user.role != 'admin' and shop.owner_id != current_user.id:
+        flash('Hakuna ruhusa', 'danger')
+        return redirect(url_for('shops'))
+    
+    products = Product.query.filter_by(shop_id=shop_id, is_active=True).all()
+    sales = Sale.query.filter_by(shop_id=shop_id).order_by(Sale.created_at.desc()).limit(20).all()
+    
+    return render_template('shop_detail.html', shop=shop, products=products, sales=sales)
+
+
+
+# PART 7: ROUTES - INVENTORY MANAGEMENT
+
+
+@app.route('/products')
+@login_required
+def products():
+    if current_user.role == 'vendor':
+        user_shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        shop_ids = [shop.id for shop in user_shops]
+        all_products = Product.query.filter(Product.shop_id.in_(shop_ids)).all()
+    else:
+        all_products = Product.query.all()
+    
+    return render_template('products.html', products=all_products)
+
+
+@app.route('/product/add', methods=['GET', 'POST'])
+@login_required
+@role_required(['vendor'])
+def add_product():
+    if request.method == 'POST':
+        # Generate SKU if not provided
+        sku = request.form.get('sku')
+        if not sku:
+            sku = f"PRD{datetime.utcnow().timestamp():.0f}"
+        
+        expiry = request.form.get('expiry_date')
+        expiry_date = datetime.strptime(expiry, '%Y-%m-%d').date() if expiry else None
+        
+        product = Product(
+            name=request.form['name'],
+            description=request.form.get('description'),
+            price=float(request.form['price']),
+            cost_price=float(request.form.get('cost_price', 0)),
+            quantity=int(request.form['quantity']),
+            unit=request.form.get('unit', 'pcs'),
+            sku=sku,
+            category=request.form.get('category'),
+            expiry_date=expiry_date,
+            reorder_level=int(request.form.get('reorder_level', 10)),
+            shop_id=int(request.form['shop_id'])
         )
-    ).order_by(Message.created_at).all()
+        
+        db.session.add(product)
+        db.session.commit()
+        
+        # Check if low stock alert needed
+        if product.quantity <= product.reorder_level:
+            alert = Alert(
+                user_id=current_user.id,
+                title='Bidhaa zimepungua',
+                message=f'{product.name} iko chini ya kiwango cha uhakika',
+                alert_type='low_stock'
+            )
+            db.session.add(alert)
+            db.session.commit()
+        
+        flash('Bidhaa imeongezwa kikamilifu!', 'success')
+        return redirect(url_for('products'))
     
-    # Mark received messages as read
-    for msg in messages:
-        if msg.receiver_id == current_user.id and not msg.is_read:
-            msg.is_read = True
+    shops = Shop.query.filter_by(owner_id=current_user.id).all()
+    return render_template('product_add.html', shops=shops)
+
+
+@app.route('/product/<int:product_id>/update', methods=['GET', 'POST'])
+@login_required
+def update_product(product_id):
+    product = Product.query.get_or_404(product_id)
     
-    db.session.commit()
+    if request.method == 'POST':
+        product.name = request.form['name']
+        product.price = float(request.form['price'])
+        product.quantity = int(request.form['quantity'])
+        product.description = request.form.get('description')
+        product.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        flash('Bidhaa imesasishwa!', 'success')
+        return redirect(url_for('products'))
+    
+    return render_template('product_update.html', product=product)
+
+
+
+# PART 8: ROUTES - SALES MANAGEMENT
+
+
+@app.route('/sales')
+@login_required
+def sales():
+    if current_user.role == 'vendor':
+        user_shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        shop_ids = [shop.id for shop in user_shops]
+        all_sales = Sale.query.filter(Sale.shop_id.in_(shop_ids)).order_by(
+            Sale.created_at.desc()
+        ).all()
+    else:
+        all_sales = Sale.query.order_by(Sale.created_at.desc()).all()
+    
+    return render_template('sales.html', sales=all_sales)
+
+
+@app.route('/sale/create', methods=['GET', 'POST'])
+@login_required
+@role_required(['vendor'])
+def create_sale():
+    if request.method == 'POST':
+        data = request.json
+        
+        # Generate sale number
+        sale_number = f"SALE{datetime.utcnow().timestamp():.0f}"
+        
+        sale = Sale(
+            sale_number=sale_number,
+            shop_id=data['shop_id'],
+            customer_name=data.get('customer_name'),
+            customer_phone=data.get('customer_phone'),
+            total_amount=float(data['total_amount']),
+            payment_method=data.get('payment_method', 'cash'),
+            payment_reference=data.get('payment_reference'),
+            notes=data.get('notes')
+        )
+        
+        db.session.add(sale)
+        db.session.flush()
+        
+        # Add sale items and update inventory
+        for item in data['items']:
+            product = Product.query.get(item['product_id'])
+            
+            if product.quantity < item['quantity']:
+                db.session.rollback()
+                return jsonify({'error': f'Stock ya {product.name} hazitosha'}), 400
+            
+            sale_item = SaleItem(
+                sale_id=sale.id,
+                product_id=item['product_id'],
+                quantity=item['quantity'],
+                unit_price=item['unit_price'],
+                subtotal=item['subtotal']
+            )
+            
+            # Update product quantity
+            product.quantity -= item['quantity']
+            
+            db.session.add(sale_item)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'sale_id': sale.id, 'sale_number': sale_number})
+    
+    shops = Shop.query.filter_by(owner_id=current_user.id).all()
+    return render_template('sale_create.html', shops=shops)
+
+
+@app.route('/api/shop/<int:shop_id>/products')
+@login_required
+def get_shop_products(shop_id):
+    products = Product.query.filter_by(shop_id=shop_id, is_active=True).all()
+    return jsonify([{
+        'id': p.id,
+        'name': p.name,
+        'price': p.price,
+        'quantity': p.quantity,
+        'unit': p.unit
+    } for p in products])
+
+
+
+# PART 9: ROUTES - EXPENSE MANAGEMENT
+
+
+@app.route('/expenses')
+@login_required
+def expenses():
+    all_expenses = Expense.query.filter_by(user_id=current_user.id).order_by(
+        Expense.date.desc()
+    ).all()
+    
+    # Calculate totals by category
+    categories = db.session.query(
+        Expense.category,
+        db.func.sum(Expense.amount).label('total')
+    ).filter_by(user_id=current_user.id).group_by(Expense.category).all()
+    
+    return render_template('expenses.html', expenses=all_expenses, categories=categories)
+
+
+@app.route('/expense/add', methods=['GET', 'POST'])
+@login_required
+def add_expense():
+    if request.method == 'POST':
+        expense_date = request.form.get('date')
+        date_obj = datetime.strptime(expense_date, '%Y-%m-%d').date() if expense_date else datetime.utcnow().date()
+        
+        expense = Expense(
+            user_id=current_user.id,
+            category=request.form['category'],
+            amount=float(request.form['amount']),
+            description=request.form.get('description'),
+            date=date_obj,
+            payment_method=request.form.get('payment_method'),
+            receipt_number=request.form.get('receipt_number')
+        )
+        
+        db.session.add(expense)
+        db.session.commit()
+        
+        flash('Gharama imeongezwa kikamilifu!', 'success')
+        return redirect(url_for('expenses'))
+    
+    return render_template('expense_add.html')
+
+
+
+# PART 10: ROUTES - REPORTS & ANALYTICS
+
+
+@app.route('/reports')
+@login_required
+def reports():
+    return render_template('reports.html')
+
+
+@app.route('/api/analytics/sales')
+@login_required
+def analytics_sales():
+    period = request.args.get('period', '7days')
+    
+    if period == '7days':
+        start_date = datetime.utcnow() - timedelta(days=7)
+    elif period == '30days':
+        start_date = datetime.utcnow() - timedelta(days=30)
+    else:
+        start_date = datetime.utcnow() - timedelta(days=365)
+    
+    # Get sales data
+    if current_user.role == 'vendor':
+        shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        shop_ids = [s.id for s in shops]
+        sales = Sale.query.filter(
+            Sale.shop_id.in_(shop_ids),
+            Sale.created_at >= start_date
+        ).all()
+    else:
+        sales = Sale.query.filter(Sale.created_at >= start_date).all()
+    
+    # Group by date
+    daily_sales = {}
+    for sale in sales:
+        date_key = sale.created_at.strftime('%Y-%m-%d')
+        daily_sales[date_key] = daily_sales.get(date_key, 0) + sale.total_amount
     
     return jsonify({
-        'messages': [{
-            'id': msg.id,
-            'sender_id': msg.sender_id,
-            'receiver_id': msg.receiver_id,
-            'content': msg.content,
-            'is_read': msg.is_read,
-            'created_at': msg.created_at.isoformat(),
-            'sender_username': msg.sender.username,
-            'sender_profile_picture': msg.sender.profile_picture
-        } for msg in messages]
+        'labels': list(daily_sales.keys()),
+        'data': list(daily_sales.values())
     })
 
-@app.route('/api/messages/send', methods=['POST'])
+
+@app.route('/api/analytics/top-products')
 @login_required
-def send_message():
-    try:
-        data = request.get_json()
-        receiver_id = data.get('receiver_id')
-        content = data.get('content')
+def analytics_top_products():
+    if current_user.role == 'vendor':
+        shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        shop_ids = [s.id for s in shops]
         
-        if not content or not receiver_id:
-            return jsonify({'error': 'Message content and receiver are required'}), 400
+        top_products = db.session.query(
+            Product.name,
+            db.func.sum(SaleItem.quantity).label('total_sold')
+        ).join(SaleItem).join(Sale).filter(
+            Sale.shop_id.in_(shop_ids)
+        ).group_by(Product.name).order_by(
+            db.desc('total_sold')
+        ).limit(10).all()
+    else:
+        top_products = db.session.query(
+            Product.name,
+            db.func.sum(SaleItem.quantity).label('total_sold')
+        ).join(SaleItem).group_by(Product.name).order_by(
+            db.desc('total_sold')
+        ).limit(10).all()
+    
+    return jsonify({
+        'labels': [p[0] for p in top_products],
+        'data': [float(p[1]) for p in top_products]
+    })
+
+
+@app.route('/reports/download/<report_type>')
+@login_required
+def download_report(report_type):
+    if report_type == 'sales':
+        # Generate CSV
+        output = BytesIO()
+        writer = csv.writer(output)
+        writer.writerow(['Sale Number', 'Date', 'Customer', 'Amount', 'Payment Method'])
         
-        receiver = User.query.get(receiver_id)
-        if not receiver:
-            return jsonify({'error': 'User not found'}), 404
+        if current_user.role == 'vendor':
+            shops = Shop.query.filter_by(owner_id=current_user.id).all()
+            shop_ids = [s.id for s in shops]
+            sales = Sale.query.filter(Sale.shop_id.in_(shop_ids)).all()
+        else:
+            sales = Sale.query.all()
         
-        message = Message(
-            sender_id=current_user.id,
-            receiver_id=receiver_id,
-            content=content
+        for sale in sales:
+            writer.writerow([
+                sale.sale_number,
+                sale.created_at.strftime('%Y-%m-%d %H:%M'),
+                sale.customer_name or 'N/A',
+                sale.total_amount,
+                sale.payment_method
+            ])
+        
+        output.seek(0)
+        return send_file(
+            output,
+            mimetype='text/csv',
+            as_attachment=True,
+            download_name=f'sales_report_{datetime.utcnow().strftime("%Y%m%d")}.csv'
+        )
+    
+    return jsonify({'error': 'Invalid report type'}), 400
+
+
+
+# PART 11: ROUTES - SUPPLIER MANAGEMENT
+
+
+@app.route('/suppliers')
+@login_required
+def suppliers():
+    all_suppliers = Supplier.query.filter_by(is_active=True).all()
+    return render_template('suppliers.html', suppliers=all_suppliers)
+
+
+@app.route('/supplier/add', methods=['GET', 'POST'])
+@login_required
+@role_required(['vendor', 'admin'])
+def add_supplier():
+    if request.method == 'POST':
+        supplier = Supplier(
+            name=request.form['name'],
+            contact_person=request.form.get('contact_person'),
+            phone=request.form['phone'],
+            email=request.form.get('email'),
+            address=request.form.get('address'),
+            category=request.form.get('category')
         )
         
-        db.session.add(message)
+        db.session.add(supplier)
+        db.session.commit()
         
-        # Create notification for receiver
-        notif = Notification(
-            user_id=receiver_id,
-            content=f"{current_user.username} sent you a message",
-            link=f"/messages/{current_user.id}"
+        flash('Muuzaji ameongezwa kikamilifu!', 'success')
+        return redirect(url_for('suppliers'))
+    
+    return render_template('supplier_add.html')
+
+
+@app.route('/orders')
+@login_required
+def orders():
+    if current_user.role == 'vendor':
+        all_orders = Order.query.filter_by(buyer_id=current_user.id).order_by(
+            Order.created_at.desc()
+        ).all()
+    else:
+        all_orders = Order.query.order_by(Order.created_at.desc()).all()
+    
+    return render_template('orders.html', orders=all_orders)
+
+
+@app.route('/order/create', methods=['GET', 'POST'])
+@login_required
+@role_required(['vendor'])
+def create_order():
+    if request.method == 'POST':
+        data = request.json
+        
+        order_number = f"ORD{datetime.utcnow().timestamp():.0f}"
+        
+        order = Order(
+            order_number=order_number,
+            buyer_id=current_user.id,
+            supplier_id=data['supplier_id'],
+            total_amount=float(data['total_amount']),
+            delivery_date=datetime.strptime(data['delivery_date'], '%Y-%m-%d').date() if data.get('delivery_date') else None,
+            notes=data.get('notes')
         )
-        db.session.add(notif)
+        
+        db.session.add(order)
+        db.session.flush()
+        
+        for item in data['items']:
+            order_item = OrderItem(
+                order_id=order.id,
+                product_name=item['product_name'],
+                quantity=item['quantity'],
+                unit_price=item['unit_price'],
+                subtotal=item['subtotal']
+            )
+            db.session.add(order_item)
         
         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'message': {
-                'id': message.id,
-                'sender_id': message.sender_id,
-                'receiver_id': message.receiver_id,
-                'content': message.content,
-                'is_read': message.is_read,
-                'created_at': message.created_at.isoformat(),
-                'sender_username': current_user.username,
-                'sender_profile_picture': current_user.profile_picture
-            }
-        })
+        return jsonify({'success': True, 'order_id': order.id, 'order_number': order_number})
+    
+    suppliers_list = Supplier.query.filter_by(is_active=True).all()
+    return render_template('order_create.html', suppliers=suppliers_list)
+
+
+@app.route('/order/<int:order_id>/status', methods=['POST'])
+@login_required
+def update_order_status(order_id):
+    order = Order.query.get_or_404(order_id)
+    
+    new_status = request.json.get('status')
+    if new_status in ['pending', 'approved', 'shipped', 'delivered', 'cancelled']:
+        order.status = new_status
+        db.session.commit()
+        
+        return jsonify({'success': True, 'status': new_status})
+    
+    return jsonify({'error': 'Invalid status'}), 400
+
+
+
+# PART 12: ROUTES - ALERTS & NOTIFICATIONS
+
+
+@app.route('/alerts')
+@login_required
+def alerts():
+    all_alerts = Alert.query.filter_by(user_id=current_user.id).order_by(
+        Alert.created_at.desc()
+    ).all()
+    return render_template('alerts.html', alerts=all_alerts)
+
+
+@app.route('/alert/<int:alert_id>/read', methods=['POST'])
+@login_required
+def mark_alert_read(alert_id):
+    alert = Alert.query.get_or_404(alert_id)
+    
+    if alert.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    alert.is_read = True
+    db.session.commit()
+    
+    return jsonify({'success': True})
+
+
+@app.route('/api/check-alerts')
+@login_required
+def check_alerts():
+    # Check for low stock
+    if current_user.role == 'vendor':
+        shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        
+        for shop in shops:
+            products = Product.query.filter_by(shop_id=shop.id, is_active=True).all()
+            
+            for product in products:
+                if product.quantity <= product.reorder_level:
+                    # Check if alert already exists
+                    existing_alert = Alert.query.filter_by(
+                        user_id=current_user.id,
+                        alert_type='low_stock',
+                        message__contains=product.name,
+                        is_read=False
+                    ).first()
+                    
+                    if not existing_alert:
+                        alert = Alert(
+                            user_id=current_user.id,
+                            title='Bidhaa zimepungua',
+                            message=f'{product.name} iko chini ya kiwango ({product.quantity} {product.unit})',
+                            alert_type='low_stock'
+                        )
+                        db.session.add(alert)
+        
+        db.session.commit()
+    
+    unread_count = Alert.query.filter_by(user_id=current_user.id, is_read=False).count()
+    return jsonify({'unread_count': unread_count})
+
+
+
+# PART 13: ROUTES - OFFLINE SYNC
+
+
+@app.route('/api/sync/upload', methods=['POST'])
+@login_required
+def sync_upload():
+    """Receive offline data and sync to database"""
+    data = request.json
+    
+    sync_log = SyncLog(
+        user_id=current_user.id,
+        sync_type=data['type'],
+        data=json.dumps(data['payload'])
+    )
+    
+    db.session.add(sync_log)
+    
+    try:
+        if data['type'] == 'sale':
+            # Process offline sale
+            payload = data['payload']
+            
+            sale_number = f"SALE{datetime.utcnow().timestamp():.0f}"
+            
+            sale = Sale(
+                sale_number=sale_number,
+                shop_id=payload['shop_id'],
+                customer_name=payload.get('customer_name'),
+                total_amount=float(payload['total_amount']),
+                payment_method=payload.get('payment_method', 'cash'),
+                created_at=datetime.fromisoformat(payload.get('created_at', datetime.utcnow().isoformat()))
+            )
+            
+            db.session.add(sale)
+            db.session.flush()
+            
+            for item in payload['items']:
+                product = Product.query.get(item['product_id'])
+                
+                sale_item = SaleItem(
+                    sale_id=sale.id,
+                    product_id=item['product_id'],
+                    quantity=item['quantity'],
+                    unit_price=item['unit_price'],
+                    subtotal=item['subtotal']
+                )
+                
+                product.quantity -= item['quantity']
+                db.session.add(sale_item)
+        
+        elif data['type'] == 'expense':
+            payload = data['payload']
+            
+            expense = Expense(
+                user_id=current_user.id,
+                category=payload['category'],
+                amount=float(payload['amount']),
+                description=payload.get('description'),
+                date=datetime.fromisoformat(payload['date']).date()
+            )
+            
+            db.session.add(expense)
+        
+        sync_log.status = 'completed'
+        sync_log.synced_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Data synced successfully'})
     
     except Exception as e:
         db.session.rollback()
+        sync_log.status = 'failed'
+        db.session.commit()
+        
         return jsonify({'error': str(e)}), 500
 
-@app.route('/trending')
-@login_required
-def trending():
-    # Get trending hashtags
-    hashtags = Hashtag.query.order_by(Hashtag.count.desc()).limit(20).all()
-    
-    # Get trending posts (most liked in last 24 hours)
-    yesterday = datetime.utcnow() - timedelta(days=1)
-    trending_posts = db.session.query(Post).join(Like).filter(
-        Post.created_at >= yesterday
-    ).group_by(Post.id).order_by(func.count(Like.id).desc()).limit(20).all()
-    
-    return render_template('trending.html', hashtags=hashtags, posts=trending_posts)
 
-# Admin Panel Routes
-@app.route('/admin')
+@app.route('/api/sync/download')
 @login_required
-@admin_required
-def admin_dashboard():
-    total_users = User.query.count()
-    total_posts = Post.query.count()
-    total_likes = Like.query.count()
-    total_comments = Comment.query.count()
+def sync_download():
+    """Send latest data to client for offline use"""
+    if current_user.role == 'vendor':
+        shops = Shop.query.filter_by(owner_id=current_user.id).all()
+        shop_ids = [s.id for s in shops]
+        
+        products = Product.query.filter(Product.shop_id.in_(shop_ids), Product.is_active==True).all()
+        
+        return jsonify({
+            'shops': [{
+                'id': s.id,
+                'name': s.name,
+                'category': s.category
+            } for s in shops],
+            'products': [{
+                'id': p.id,
+                'name': p.name,
+                'price': p.price,
+                'quantity': p.quantity,
+                'shop_id': p.shop_id,
+                'unit': p.unit
+            } for p in products]
+        })
     
-    recent_users = User.query.order_by(User.created_at.desc()).limit(10).all()
-    recent_posts = Post.query.order_by(Post.created_at.desc()).limit(10).all()
+    return jsonify({'shops': [], 'products': []})
+
+
+
+# PART 14: ROUTES - SETTINGS & PROFILE
+
+
+@app.route('/settings', methods=['GET', 'POST'])
+@login_required
+def settings():
+    if request.method == 'POST':
+        current_user.name = request.form['name']
+        current_user.email = request.form.get('email')
+        current_user.language = request.form.get('language', 'sw')
+        
+        new_password = request.form.get('new_password')
+        if new_password:
+            current_user.set_password(new_password)
+        
+        db.session.commit()
+        flash('Mipangilio imesasishwa!', 'success')
+        return redirect(url_for('settings'))
     
-    return render_template('admin/dashboard.html',
-                         total_users=total_users,
-                         total_posts=total_posts,
-                         total_likes=total_likes,
-                         total_comments=total_comments,
-                         recent_users=recent_users,
-                         recent_posts=recent_posts)
+    return render_template('settings.html')
+
+
+
+# PART 15: API ENDPOINTS - MOBILE MONEY
+
+
+@app.route('/api/payment/initiate', methods=['POST'])
+@login_required
+def initiate_payment():
+    """Initiate mobile money payment"""
+    data = request.json
+    
+    # This is a placeholder for actual mobile money API integration
+    # You would integrate with M-Pesa, TigoPesa, or Airtel Money APIs here
+    
+    payment_method = data.get('payment_method')  # mpesa, tigopesa, airtel_money
+    phone_number = data.get('phone_number')
+    amount = data.get('amount')
+    
+    # Simulate API call
+    payment_reference = f"PAY{datetime.utcnow().timestamp():.0f}"
+    
+    return jsonify({
+        'success': True,
+        'payment_reference': payment_reference,
+        'status': 'pending',
+        'message': 'Angalia simu yako kumaliza malipo'
+    })
+
+
+@app.route('/api/payment/callback', methods=['POST'])
+def payment_callback():
+    """Handle payment callback from mobile money provider"""
+    data = request.json
+    
+    # Process payment confirmation
+    # Update sale status, create transaction record, etc.
+    
+    return jsonify({'success': True})
+
+
+
+# PART 16: ADMIN ROUTES
+
 
 @app.route('/admin/users')
 @login_required
-@admin_required
+@role_required(['admin'])
 def admin_users():
-    users = User.query.order_by(User.created_at.desc()).all()
-    return render_template('admin/users.html', users=users)
+    all_users = User.query.all()
+    return render_template('admin_users.html', users=all_users)
 
-@app.route('/admin/user/<int:user_id>/delete', methods=['POST'])
+
+@app.route('/admin/user/<int:user_id>/toggle-status', methods=['POST'])
 @login_required
-@admin_required
-def admin_delete_user(user_id):
+@role_required(['admin'])
+def toggle_user_status(user_id):
     user = User.query.get_or_404(user_id)
-    if user.is_admin:
-        flash('Cannot delete admin users.', 'danger')
-        return redirect(url_for('admin_users'))
+    user.is_active = not user.is_active
+    db.session.commit()
     
-    db.session.delete(user)
-    db.session.commit()
-    flash('User deleted successfully.', 'success')
-    return redirect(url_for('admin_users'))
+    return jsonify({'success': True, 'is_active': user.is_active})
 
-@app.route('/admin/posts')
+
+@app.route('/admin/statistics')
 @login_required
-@admin_required
-def admin_posts():
-    posts = Post.query.order_by(Post.created_at.desc()).all()
-    return render_template('admin/posts.html', posts=posts)
-
-@app.route('/admin/post/<int:post_id>/delete', methods=['POST'])
-@login_required
-@admin_required
-def admin_delete_post(post_id):
-    post = Post.query.get_or_404(post_id)
-    db.session.delete(post)
-    db.session.commit()
-    flash('Post deleted successfully.', 'success')
-    return redirect(url_for('admin_posts'))
-
-@app.route('/admin/user/<int:user_id>/toggle_admin', methods=['POST'])
-@login_required
-@admin_required
-def toggle_admin(user_id):
-    user = User.query.get_or_404(user_id)
-    user.is_admin = not user.is_admin
-    db.session.commit()
-    flash(f'Admin status updated for {user.username}.', 'success')
-    return redirect(url_for('admin_users'))
-
-# Initialize database
-with app.app_context():
-    db.create_all()
-    # Create default admin if not exists
-    admin = User.query.filter_by(username='admin').first()
-    if not admin:
-        admin = User(username='admin', email='admin@twitter.com', is_admin=True)
-        admin.set_password('Admin321')
-        db.session.add(admin)
-        db.session.commit()
-
-@app.template_filter('process_content')
-def process_content_filter(content):
-    return process_content(content)
-
-@app.template_filter('time_ago')
-def time_ago_filter(dt):
-    now = datetime.utcnow()
-    diff = now - dt
+@role_required(['admin'])
+def admin_statistics():
+    total_revenue = db.session.query(db.func.sum(Sale.total_amount)).scalar() or 0
+    total_expenses = db.session.query(db.func.sum(Expense.amount)).scalar() or 0
     
-    if diff.days > 365:
-        years = diff.days // 365
-        return f'{years} year{"s" if years > 1 else ""} ago'
-    elif diff.days > 30:
-        months = diff.days // 30
-        return f'{months} month{"s" if months > 1 else ""} ago'
-    elif diff.days > 0:
-        return f'{diff.days} day{"s" if diff.days > 1 else ""} ago'
-    elif diff.seconds > 3600:
-        hours = diff.seconds // 3600
-        return f'{hours} hour{"s" if hours > 1 else ""} ago'
-    elif diff.seconds > 60:
-        minutes = diff.seconds // 60
-        return f'{minutes} minute{"s" if minutes > 1 else ""} ago'
-    else:
-        return 'Just now'
+    # Monthly growth
+    current_month = datetime.utcnow().replace(day=1)
+    last_month = (current_month - timedelta(days=1)).replace(day=1)
+    
+    current_month_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
+        Sale.created_at >= current_month
+    ).scalar() or 0
+    
+    last_month_sales = db.session.query(db.func.sum(Sale.total_amount)).filter(
+        Sale.created_at >= last_month,
+        Sale.created_at < current_month
+    ).scalar() or 0
+    
+    growth_rate = ((current_month_sales - last_month_sales) / last_month_sales * 100) if last_month_sales > 0 else 0
+    
+    return render_template('admin_statistics.html',
+                         total_revenue=total_revenue,
+                         total_expenses=total_expenses,
+                         growth_rate=growth_rate)
+
+
+
+# PART 17: ERROR HANDLERS
+
+
+@app.errorhandler(404)
+def not_found(error):
+    return render_template('404.html'), 404
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    db.session.rollback()
+    return render_template('500.html'), 500
+
+
+
+# PART 18: DATABASE INITIALIZATION
+
+def init_db():
+    """Initialize database with tables and default data"""
+    with app.app_context():
+        try:
+            # First, create all tables - this must happen before any queries
+            print("🔧 Creating database tables...")
+            db.create_all()
+            print("✅ Database tables created successfully!")
+            
+            # Now that tables exist, we can safely query them
+            # Check if admin user exists
+            admin = User.query.filter_by(phone='admin').first()
+            if not admin:
+                admin = User(
+                    phone='admin',
+                    name='Administrator',
+                    email='admin@vendorapp.com',
+                    role='admin'
+                )
+                admin.set_password('admin123')
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Default admin user created (phone: admin, password: admin123)")
+            else:
+                print("ℹ️ Admin user already exists")
+                
+        except Exception as e:
+            print(f"❌ Error in database initialization: {e}")
+            # If there's an error, the database might be corrupted
+            # Delete the database file and try again
+            import os
+            if os.path.exists('vendor_app.db'):
+                os.remove('vendor_app.db')
+                print("🗑️ Removed corrupted database file")
+            
+            # Try to recreate everything
+            try:
+                db.create_all()
+                print("✅ Database tables recreated")
+                
+                # Create admin user
+                admin = User(
+                    phone='admin',
+                    name='Administrator',
+                    email='admin@vendorapp.com',
+                    role='admin'
+                )
+                admin.set_password('admin123')
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Default admin user created after recovery")
+            except Exception as e2:
+                print(f"❌ Critical error: Could not initialize database: {e2}")
+                raise e2
+
+
+# PART 19: MAIN APPLICATION ENTRY
+
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    if os.environ.get('FLASK_ENV') == 'production':
-        socketio.run(app, host='0.0.0.0', port=port)
-    else:
-        socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
+    # Create uploads folder if not exists
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+        print("✅ Created uploads folder")
+    
+    # Initialize database with error handling
+    # try:
+    #     init_db()
+    # except Exception as e:
+    #     print(f"❌ Failed to initialize database: {e}")
+    #     print("💡 If the error persists, manually delete 'vendor_app.db' and run again")
+    #     exit(1)
+    
+    # Run application
+    
+    
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -1,0 +1,346 @@
+{% extends "base.html" %}
+
+{% block title %}Ukurasa Haupatikani - VendorPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.error-container {
+    min-height: calc(100vh - 200px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: linear-gradient(135deg, var(--background) 0%, var(--card-bg) 100%);
+}
+
+.error-content {
+    text-align: center;
+    max-width: 500px;
+    background: var(--card-bg);
+    padding: 3rem;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.error-content::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--warning) 0%, var(--error) 100%);
+}
+
+.error-icon {
+    font-size: 4rem;
+    color: var(--warning);
+    margin-bottom: 1.5rem;
+    animation: bounce 2s infinite;
+}
+
+.error-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.error-code {
+    font-size: 6rem;
+    font-weight: 900;
+    color: var(--error);
+    line-height: 1;
+    margin-bottom: 1rem;
+    opacity: 0.1;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 0;
+}
+
+.error-message {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.error-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    flex-wrap: wrap;
+    position: relative;
+    z-index: 1;
+}
+
+.btn-error {
+    padding: 0.75rem 1.5rem;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-secondary {
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+}
+
+.btn-primary:hover {
+    background: var(--accent-dark);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+}
+
+.btn-secondary:hover {
+    background: var(--border-color);
+    transform: translateY(-2px);
+}
+
+.error-search {
+    margin-top: 2rem;
+    position: relative;
+    z-index: 1;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.suggestions {
+    margin-top: 1rem;
+    text-align: left;
+}
+
+.suggestion-title {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.suggestion-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.suggestion-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 0.25rem 0;
+    transition: color 0.3s ease;
+}
+
+.suggestion-link:hover {
+    color: var(--accent-dark);
+    text-decoration: underline;
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-10px);
+    }
+    60% {
+        transform: translateY(-5px);
+    }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .error-content {
+        padding: 2rem 1.5rem;
+        margin: 1rem;
+    }
+    
+    .error-title {
+        font-size: 2rem;
+    }
+    
+    .error-code {
+        font-size: 4rem;
+    }
+    
+    .error-actions {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .btn-error {
+        width: 200px;
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .error-container {
+        padding: 1rem;
+    }
+    
+    .error-content {
+        padding: 1.5rem 1rem;
+    }
+    
+    .error-icon {
+        font-size: 3rem;
+    }
+    
+    .error-title {
+        font-size: 1.5rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <div class="error-code">404</div>
+        
+        <div class="error-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        
+        <h1 class="error-title">Ukurasa Haupatikani</h1>
+        
+        <p class="error-message">
+            Samahani, ukurasa unaoutafuta haupo au umebadilishwa. 
+            Huenda umeandika anuani isiyo sahihi au ukurasa umeshaondolewa.
+        </p>
+
+        <div class="error-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn-error btn-primary">
+                <i class="fas fa-home"></i>
+                Rudi Dashibodi
+            </a>
+            <a href="{{ url_for('shops') }}" class="btn-error btn-secondary">
+                <i class="fas fa-arrow-left"></i>
+                Rudi Nyuma
+            </a>
+        </div>
+
+        <div class="error-search">
+            <div style="position: relative;">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" 
+                       class="search-input" 
+                       placeholder="Tafuta kitu kingine..." 
+                       id="error-search">
+            </div>
+            
+            <div class="suggestions">
+                <div class="suggestion-title">Ukurasa unaoweza kupatikana:</div>
+                <div class="suggestion-links">
+                    <a href="{{ url_for('shops') }}" class="suggestion-link">
+                        <i class="fas fa-store"></i>
+                        Maduka Yangu
+                    </a>
+                    <a href="{{ url_for('products') }}" class="suggestion-link">
+                        <i class="fas fa-boxes"></i>
+                        Bidhaa Zote
+                    </a>
+                    <a href="{{ url_for('sales') }}" class="suggestion-link">
+                        <i class="fas fa-shopping-cart"></i>
+                        Mauzo
+                    </a>
+                    <a href="{{ url_for('reports') }}" class="suggestion-link">
+                        <i class="fas fa-chart-bar"></i>
+                        Ripoti
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('error-search');
+    
+    // Search functionality
+    searchInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            const searchTerm = this.value.trim();
+            if (searchTerm) {
+                // In a real app, you would redirect to search results
+                window.vendorApp.showNotification(`Inatafuta: ${searchTerm}`, 'info');
+                
+                // Simulate search (replace with actual search logic)
+                setTimeout(() => {
+                    window.vendorApp.showNotification('Hakuna matokeo ya utafutaji yaliyopatikana', 'warning');
+                }, 1000);
+            }
+        }
+    });
+    
+    // Add some interactive elements
+    const errorIcon = document.querySelector('.error-icon');
+    errorIcon.addEventListener('click', function() {
+        this.style.animation = 'none';
+        setTimeout(() => {
+            this.style.animation = 'bounce 2s infinite';
+        }, 10);
+    });
+    
+    // Report broken link functionality
+    const reportLink = document.createElement('div');
+    reportLink.innerHTML = `
+        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color);">
+            <a href="#" id="report-broken-link" style="color: var(--text-secondary); font-size: 0.9rem; text-decoration: none;">
+                <i class="fas fa-bug"></i>
+                Ripoti kiungo kilichovunjika
+            </a>
+        </div>
+    `;
+    
+    document.querySelector('.error-content').appendChild(reportLink);
+    
+    document.getElementById('report-broken-link').addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        const currentUrl = window.location.href;
+        const reportMessage = `Nimeripoti kiungo kilichovunjika: ${currentUrl}`;
+        
+        window.vendorApp.showNotification('Asante kwa kuripoti! Tutarekebisha hili soon.', 'success');
+        
+        // In a real app, you would send this to your backend
+        console.log('Broken link reported:', currentUrl);
+    });
+});
+</script>
+{% endblock %}

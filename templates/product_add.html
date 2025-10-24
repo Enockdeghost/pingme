@@ -1,0 +1,801 @@
+{% extends "base.html" %}
+
+{% block title %}Ongeza Bidhaa - VendorPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.form-card {
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.form-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.form-title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.form-subtitle {
+    color: var(--text-secondary);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group.full-width {
+    grid-column: 1 / -1;
+}
+
+.form-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.form-label .required {
+    color: var(--error);
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.form-select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+    background-position: right 0.5rem center;
+    background-repeat: no-repeat;
+    background-size: 1.5em 1.5em;
+    padding-right: 2.5rem;
+}
+
+.form-hint {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-top: 0.25rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.price-input {
+    position: relative;
+}
+
+.price-prefix {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.price-input .form-input {
+    padding-left: 2.5rem;
+}
+
+/* Unit Selection */
+.unit-selection {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.unit-option {
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    padding: 0.75rem 0.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--input-bg);
+    font-size: 0.9rem;
+}
+
+.unit-option:hover {
+    border-color: var(--accent);
+}
+
+.unit-option.selected {
+    border-color: var(--accent);
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* Profit Calculator */
+.profit-calculator {
+    background: var(--background);
+    padding: 1rem;
+    border-radius: 10px;
+    margin-top: 0.5rem;
+}
+
+.profit-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.profit-label {
+    color: var(--text-secondary);
+}
+
+.profit-value {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.profit-positive {
+    color: var(--success);
+}
+
+.profit-negative {
+    color: var(--error);
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    padding-top: 2rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-primary {
+    flex: 1;
+    padding: 12px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-primary:hover {
+    background: var(--accent-dark);
+    transform: translateY(-2px);
+}
+
+.btn-primary.loading {
+    pointer-events: none;
+    opacity: 0.7;
+}
+
+.btn-primary.loading::after {
+    content: '';
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.btn-secondary {
+    flex: 1;
+    padding: 12px;
+    background: transparent;
+    color: var(--text-primary);
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    text-align: center;
+}
+
+.btn-secondary:hover {
+    background: var(--border-color);
+}
+
+/* Barcode Scanner */
+.barcode-section {
+    background: var(--background);
+    padding: 1.5rem;
+    border-radius: 10px;
+    margin-bottom: 1.5rem;
+}
+
+.barcode-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.barcode-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+}
+
+#barcode-scanner {
+    width: 100%;
+    height: 200px;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .form-container {
+        padding: 0 1rem;
+    }
+    
+    .form-card {
+        padding: 1.5rem;
+    }
+    
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .unit-selection {
+        grid-template-columns: repeat(auto-fit, minmax(70px, 1fr));
+    }
+}
+
+@media (max-width: 480px) {
+    .form-card {
+        padding: 1rem;
+    }
+    
+    .form-title {
+        font-size: 1.5rem;
+    }
+    
+    .barcode-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <div class="form-card">
+        <div class="form-header">
+            <h1 class="form-title">Ongeza Bidhaa Mpya</h1>
+            <p class="form-subtitle">Jaza maelezo ya bidhaa yako mpya hapa chini</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('add_product') }}" id="product-form">
+            <div class="form-grid">
+                <!-- Basic Information -->
+                <div class="form-group full-width">
+                    <label for="name" class="form-label">
+                        Jina la Bidhaa <span class="required">*</span>
+                    </label>
+                    <input type="text" 
+                           id="name" 
+                           name="name" 
+                           class="form-input" 
+                           placeholder="Mf. Sukari, Umeme, Mafuta, nk." 
+                           required
+                           maxlength="200">
+                    <div class="form-hint">Weka jina la kipekee la bidhaa yako</div>
+                </div>
+
+                <div class="form-group">
+                    <label for="shop_id" class="form-label">
+                        Duka <span class="required">*</span>
+                    </label>
+                    <select id="shop_id" name="shop_id" class="form-select" required>
+                        <option value="">Chagua Duka</option>
+                        {% for shop in shops %}
+                        <option value="{{ shop.id }}" 
+                                {% if request.args.get('shop') == shop.id|string %}selected{% endif %}>
+                            {{ shop.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="category" class="form-label">Kategoria</label>
+                    <input type="text" 
+                           id="category" 
+                           name="category" 
+                           class="form-input" 
+                           placeholder="Mf. Chakula, Vinywaji, Viungo"
+                           maxlength="100">
+                    <div class="form-hint">Weka kategoria ya bidhaa (hiari)</div>
+                </div>
+
+                <!-- Pricing -->
+                <div class="form-group">
+                    <label for="price" class="form-label">
+                        Bei ya Kuuza (TZS) <span class="required">*</span>
+                    </label>
+                    <div class="price-input">
+                        <span class="price-prefix">TZS</span>
+                        <input type="number" 
+                               id="price" 
+                               name="price" 
+                               class="form-input" 
+                               placeholder="0.00" 
+                               required
+                               min="0"
+                               step="0.01">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="cost_price" class="form-label">Bei ya Ununuzi (TZS)</label>
+                    <div class="price-input">
+                        <span class="price-prefix">TZS</span>
+                        <input type="number" 
+                               id="cost_price" 
+                               name="cost_price" 
+                               class="form-input" 
+                               placeholder="0.00" 
+                               min="0"
+                               step="0.01">
+                    </div>
+                    <div class="form-hint">Bei uliyonunulia bidhaa (kwa ajili ya faida)</div>
+                </div>
+
+                <!-- Stock Information -->
+                <div class="form-group">
+                    <label for="quantity" class="form-label">
+                        Idadi ya Bidhaa <span class="required">*</span>
+                    </label>
+                    <input type="number" 
+                           id="quantity" 
+                           name="quantity" 
+                           class="form-input" 
+                           placeholder="0" 
+                           required
+                           min="0"
+                           step="1">
+                </div>
+
+                <div class="form-group">
+                    <label for="reorder_level" class="form-label">Kiwango cha Kuagiza Tenna</label>
+                    <input type="number" 
+                           id="reorder_level" 
+                           name="reorder_level" 
+                           class="form-input" 
+                           placeholder="10" 
+                           value="10"
+                           min="1"
+                           step="1">
+                    <div class="form-hint">Tutakutaarifa wakati bidhaa inakaribia kuisha</div>
+                </div>
+
+                <!-- Unit Selection -->
+                <div class="form-group">
+                    <label class="form-label">Kipimo</label>
+                    <div class="unit-selection">
+                        <div class="unit-option selected" data-value="pcs">Vipande</div>
+                        <div class="unit-option" data-value="kg">Kilo</div>
+                        <div class="unit-option" data-value="g">Gramu</div>
+                        <div class="unit-option" data-value="l">Lita</div>
+                        <div class="unit-option" data-value="ml">Mililita</div>
+                        <div class="unit-option" data-value="box">Sanduku</div>
+                    </div>
+                    <input type="hidden" id="unit" name="unit" value="pcs" required>
+                </div>
+
+                <!-- Additional Information -->
+                <div class="form-group full-width">
+                    <label for="description" class="form-label">Maelezo ya Ziada</label>
+                    <textarea id="description" 
+                              name="description" 
+                              class="form-textarea" 
+                              placeholder="Maelezo ya ziada kuhusu bidhaa hii..."
+                              maxlength="500"></textarea>
+                    <div class="form-hint">Hiari: Weka maelezo ya ziada kuhusu bidhaa</div>
+                </div>
+
+                <!-- Expiry Date -->
+                <div class="form-group">
+                    <label for="expiry_date" class="form-label">Tarehe ya Mwisho wa Matumizi</label>
+                    <input type="date" 
+                           id="expiry_date" 
+                           name="expiry_date" 
+                           class="form-input">
+                    <div class="form-hint">Hiari: Tarehe ya kumalizika kwa bidhaa</div>
+                </div>
+
+                <!-- SKU/Barcode -->
+                <div class="form-group">
+                    <label for="sku" class="form-label">Namba ya Kipekee (SKU)</label>
+                    <input type="text" 
+                           id="sku" 
+                           name="sku" 
+                           class="form-input" 
+                           placeholder="SKU ya kiotomatiki"
+                           maxlength="50">
+                    <div class="form-hint">Acha tupu kwa SKU ya kiotomatiki</div>
+                </div>
+            </div>
+
+            <!-- Profit Calculator -->
+            <div class="profit-calculator" id="profit-calculator" style="display: none;">
+                <div class="profit-row">
+                    <span class="profit-label">Faida kwa Kipimo:</span>
+                    <span class="profit-value" id="profit-per-unit">TZS 0.00</span>
+                </div>
+                <div class="profit-row">
+                    <span class="profit-label">Faida ya Jumla:</span>
+                    <span class="profit-value" id="total-profit">TZS 0.00</span>
+                </div>
+                <div class="profit-row">
+                    <span class="profit-label">Kiwango cha Faida:</span>
+                    <span class="profit-value" id="profit-margin">0%</span>
+                </div>
+            </div>
+
+            <!-- Form Actions -->
+            <div class="form-actions">
+                <a href="{{ url_for('products') }}" class="btn-secondary">
+                    <i class="fas fa-arrow-left"></i>
+                    Rudi kwa Bidhaa
+                </a>
+                <button type="submit" class="btn-primary" id="submit-btn">
+                    <i class="fas fa-save"></i>
+                    Hifadhi Bidhaa
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('product-form');
+    const submitBtn = document.getElementById('submit-btn');
+    const unitOptions = document.querySelectorAll('.unit-option');
+    const unitInput = document.getElementById('unit');
+    const profitCalculator = document.getElementById('profit-calculator');
+    
+    // Unit selection
+    initializeUnitSelection();
+    
+    // Profit calculation
+    initializeProfitCalculator();
+    
+    // Auto-generate SKU
+    initializeSkuGeneration();
+    
+    // Form submission
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        if (validateForm()) {
+            submitForm();
+        }
+    });
+    
+    function initializeUnitSelection() {
+        unitOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                // Remove selected class from all options
+                unitOptions.forEach(opt => opt.classList.remove('selected'));
+                
+                // Add selected class to clicked option
+                this.classList.add('selected');
+                
+                // Update hidden input value
+                unitInput.value = this.dataset.value;
+            });
+        });
+    }
+    
+    function initializeProfitCalculator() {
+        const priceInput = document.getElementById('price');
+        const costInput = document.getElementById('cost_price');
+        const quantityInput = document.getElementById('quantity');
+        
+        function calculateProfit() {
+            const price = parseFloat(priceInput.value) || 0;
+            const cost = parseFloat(costInput.value) || 0;
+            const quantity = parseInt(quantityInput.value) || 0;
+            
+            if (cost > 0) {
+                const profitPerUnit = price - cost;
+                const totalProfit = profitPerUnit * quantity;
+                const profitMargin = ((profitPerUnit / cost) * 100);
+                
+                document.getElementById('profit-per-unit').textContent = 
+                    `TZS ${profitPerUnit.toLocaleString('en-TZ', {minimumFractionDigits: 2})}`;
+                document.getElementById('total-profit').textContent = 
+                    `TZS ${totalProfit.toLocaleString('en-TZ', {minimumFractionDigits: 2})}`;
+                document.getElementById('profit-margin').textContent = 
+                    `${profitMargin.toFixed(1)}%`;
+                
+                // Style based on profit
+                const profitElements = document.querySelectorAll('.profit-value');
+                profitElements.forEach(el => {
+                    el.className = 'profit-value ' + (profitPerUnit >= 0 ? 'profit-positive' : 'profit-negative');
+                });
+                
+                profitCalculator.style.display = 'block';
+            } else {
+                profitCalculator.style.display = 'none';
+            }
+        }
+        
+        priceInput.addEventListener('input', calculateProfit);
+        costInput.addEventListener('input', calculateProfit);
+        quantityInput.addEventListener('input', calculateProfit);
+    }
+    
+    function initializeSkuGeneration() {
+        const skuInput = document.getElementById('sku');
+        
+        // Generate SKU if empty on focus out
+        skuInput.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                generateSku();
+            }
+        });
+        
+        function generateSku() {
+            const name = document.getElementById('name').value;
+            const category = document.getElementById('category').value;
+            const timestamp = Date.now().toString().slice(-6);
+            
+            let sku = 'PRD';
+            if (name) {
+                sku += name.substring(0, 3).toUpperCase();
+            }
+            if (category) {
+                sku += category.substring(0, 2).toUpperCase();
+            }
+            sku += timestamp;
+            
+            skuInput.value = sku;
+        }
+    }
+    
+    function validateForm() {
+        let isValid = true;
+        
+        // Clear existing errors
+        clearErrors();
+        
+        // Validate name
+        const name = document.getElementById('name').value.trim();
+        if (name.length < 2) {
+            showError('name', 'Jina la bidhaa lazima liwe na herufi 2 au zaidi');
+            isValid = false;
+        }
+        
+        // Validate shop
+        const shopId = document.getElementById('shop_id').value;
+        if (!shopId) {
+            showError('shop_id', 'Tafadhali chagua duka');
+            isValid = false;
+        }
+        
+        // Validate price
+        const price = parseFloat(document.getElementById('price').value);
+        if (isNaN(price) || price < 0) {
+            showError('price', 'Tafadhali weka bei sahihi');
+            isValid = false;
+        }
+        
+        // Validate quantity
+        const quantity = parseInt(document.getElementById('quantity').value);
+        if (isNaN(quantity) || quantity < 0) {
+            showError('quantity', 'Tafadhali weka idadi sahihi');
+            isValid = false;
+        }
+        
+        // Validate cost price if provided
+        const costPrice = document.getElementById('cost_price').value;
+        if (costPrice && (isNaN(costPrice) || costPrice < 0)) {
+            showError('cost_price', 'Tafadhali weka bei ya ununuzi sahihi');
+            isValid = false;
+        }
+        
+        return isValid;
+    }
+    
+    function submitForm() {
+        // Show loading state
+        submitBtn.classList.add('loading');
+        submitBtn.innerHTML = 'Inahifadhi...';
+        
+        // Disable form inputs during submission
+        const inputs = form.querySelectorAll('input, textarea, select, button');
+        inputs.forEach(input => input.disabled = true);
+        
+        // Submit the form
+        form.submit();
+    }
+    
+    function showError(fieldId, message) {
+        const fieldElement = document.getElementById(fieldId).closest('.form-group');
+        
+        const errorDiv = document.createElement('div');
+        errorDiv.className = 'error-message';
+        errorDiv.style.cssText = `
+            color: var(--error);
+            font-size: 0.8rem;
+            margin-top: 0.25rem;
+        `;
+        errorDiv.textContent = message;
+        
+        fieldElement.appendChild(errorDiv);
+        
+        // Add error styling to input
+        const input = document.getElementById(fieldId);
+        if (input) {
+            input.style.borderColor = 'var(--error)';
+        }
+    }
+    
+    function clearErrors() {
+        const errorMessages = document.querySelectorAll('.error-message');
+        errorMessages.forEach(error => error.remove());
+        
+        const formInputs = document.querySelectorAll('.form-input, .form-textarea, .form-select');
+        formInputs.forEach(input => {
+            input.style.borderColor = 'var(--border-color)';
+        });
+    }
+    
+    // Auto-save draft functionality
+    let autoSaveTimer;
+    const formInputs = form.querySelectorAll('input, textarea, select');
+    
+    formInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            clearTimeout(autoSaveTimer);
+            autoSaveTimer = setTimeout(saveDraft, 1000);
+        });
+    });
+    
+    function saveDraft() {
+        const formData = new FormData(form);
+        const draft = {};
+        
+        for (let [key, value] of formData.entries()) {
+            draft[key] = value;
+        }
+        
+        try {
+            localStorage.setItem('product_draft', JSON.stringify(draft));
+            console.log('Product draft saved automatically');
+        } catch (error) {
+            console.warn('Could not save draft:', error);
+        }
+    }
+    
+    // Load draft on page load
+    function loadDraft() {
+        try {
+            const draft = localStorage.getItem('product_draft');
+            if (draft) {
+                const data = JSON.parse(draft);
+                
+                Object.keys(data).forEach(key => {
+                    const field = document.getElementById(key);
+                    if (field) {
+                        field.value = data[key];
+                        
+                        // Trigger input event to update calculators
+                        field.dispatchEvent(new Event('input'));
+                        
+                        // Select unit if unit is set
+                        if (key === 'unit' && data[key]) {
+                            const option = document.querySelector(`[data-value="${data[key]}"]`);
+                            if (option) {
+                                option.click();
+                            }
+                        }
+                    }
+                });
+                
+                window.vendorApp.showNotification('Draft iliyohifadhiwa imepakiwa', 'info');
+            }
+        } catch (error) {
+            console.warn('Could not load draft:', error);
+        }
+    }
+    
+    // Clear draft on successful form submission
+    form.addEventListener('submit', function() {
+        try {
+            localStorage.removeItem('product_draft');
+        } catch (error) {
+            console.warn('Could not clear draft:', error);
+        }
+    });
+    
+    // Load draft when page loads
+    loadDraft();
+});
+</script>
+{% endblock %}

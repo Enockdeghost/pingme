@@ -1,0 +1,735 @@
+{% extends "base.html" %}
+
+{% block title %}Bidhaa - VendorPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.products-page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.page-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.page-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.search-box {
+    position: relative;
+    min-width: 300px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.75rem 1rem 0.75rem 2.5rem;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.search-icon {
+    position: absolute;
+    left: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+}
+
+.filter-select {
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    min-width: 150px;
+}
+
+/* Products Grid */
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.product-card {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+    border-color: var(--accent);
+}
+
+.product-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--primary) 100%);
+}
+
+.product-card.low-stock {
+    border-left: 4px solid var(--error);
+}
+
+.product-card.out-of-stock {
+    border-left: 4px solid var(--error);
+    opacity: 0.7;
+}
+
+.product-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.product-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.product-shop {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.product-price {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: right;
+}
+
+.product-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.product-category {
+    background: var(--border-color);
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+}
+
+.product-stock {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stock-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.stock-low { background: var(--error); }
+.stock-medium { background: var(--warning); }
+.stock-high { background: var(--success); }
+.stock-out { background: var(--error); }
+
+.product-description {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.product-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-sm {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    border-radius: 8px;
+    text-decoration: none;
+    text-align: center;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+}
+
+.btn-sm:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+.btn-sm.danger:hover {
+    background: var(--error);
+    border-color: var(--error);
+}
+
+/* Bulk Actions */
+.bulk-actions {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    background: var(--card-bg);
+    border-radius: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.bulk-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.bulk-buttons {
+    display: flex;
+    gap: 0.5rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    background: var(--card-bg);
+    border-radius: 15px;
+    grid-column: 1 / -1;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    color: var(--border-color);
+    margin-bottom: 1rem;
+}
+
+.empty-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.empty-description {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+/* Quick Stats */
+.quick-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.quick-stat {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: center;
+}
+
+.quick-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+}
+
+.quick-stat-label {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    display: block;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .products-grid {
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+}
+
+@media (max-width: 768px) {
+    .products-page {
+        padding: 0 1rem;
+    }
+    
+    .page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .page-actions {
+        justify-content: space-between;
+    }
+    
+    .search-box {
+        min-width: auto;
+        flex: 1;
+    }
+    
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .bulk-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .bulk-buttons {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 480px) {
+    .product-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .product-price {
+        text-align: left;
+    }
+    
+    .product-actions {
+        flex-direction: column;
+    }
+    
+    .quick-stats {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="products-page">
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1 class="page-title">Bidhaa Zote</h1>
+        <div class="page-actions">
+            <div class="search-box">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" 
+                       class="search-input" 
+                       placeholder="Tafuta bidhaa..." 
+                       id="search-products">
+            </div>
+            <select class="filter-select" id="shop-filter">
+                <option value="">Maduka Yote</option>
+                {% for shop in shops %}
+                <option value="{{ shop.id }}">{{ shop.name }}</option>
+                {% endfor %}
+            </select>
+            <select class="filter-select" id="category-filter">
+                <option value="">Kategoria Zote</option>
+                <option value="chakula">Chakula</option>
+                <option value="vinywaji">Vinywaji</option>
+                <option value="viungo">Viungo</option>
+                <option value="nyumbani">Nyumbani</option>
+                <option value="matumizi">Matumizi</option>
+            </select>
+            <a href="{{ url_for('add_product') }}" class="btn-primary">
+                <i class="fas fa-plus"></i>
+                Ongeza Bidhaa
+            </a>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    {% set total_products = products|length %}
+    {% set low_stock_products = products|selectattr('quantity', '<=', 'reorder_level')|list %}
+    {% set out_of_stock_products = products|selectattr('quantity', '<=', 0)|list %}
+    
+    <div class="quick-stats">
+        <div class="quick-stat">
+            <span class="quick-stat-value">{{ total_products }}</span>
+            <span class="quick-stat-label">Jumla ya Bidhaa</span>
+        </div>
+        <div class="quick-stat">
+            <span class="quick-stat-value">{{ low_stock_products|length }}</span>
+            <span class="quick-stat-label">Zinapungua</span>
+        </div>
+        <div class="quick-stat">
+            <span class="quick-stat-value">{{ out_of_stock_products|length }}</span>
+            <span class="quick-stat-label">Zimeisha</span>
+        </div>
+        <div class="quick-stat">
+            <span class="quick-stat-value">
+                {% set total_value = products|sum(attribute='price') %}
+                {{ "TZS {:,.0f}".format(total_value) }}
+            </span>
+            <span class="quick-stat-label">Thamani ya Jumla</span>
+        </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="bulk-actions" id="bulk-actions" style="display: none;">
+        <div class="bulk-checkbox">
+            <input type="checkbox" id="select-all">
+            <label for="select-all" id="selected-count">0 bidhaa zimechaguliwa</label>
+        </div>
+        <div class="bulk-buttons">
+            <button class="btn-sm" onclick="bulkUpdateStock()">
+                <i class="fas fa-edit"></i>
+                Badilisha Usimbwaji
+            </button>
+            <button class="btn-sm danger" onclick="bulkDelete()">
+                <i class="fas fa-trash"></i>
+                Futa Zilizochaguliwa
+            </button>
+            <button class="btn-sm" onclick="clearSelection()">
+                <i class="fas fa-times"></i>
+                Ondoa Uchaguzi
+            </button>
+        </div>
+    </div>
+
+    <!-- Products Grid -->
+    <div class="products-grid" id="products-container">
+        {% if products %}
+            {% for product in products %}
+            <div class="product-card 
+                {% if product.quantity <= 0 %}out-of-stock
+                {% elif product.quantity <= product.reorder_level %}low-stock{% endif %}"
+                data-product-id="{{ product.id }}"
+                data-product-name="{{ product.name|lower }}"
+                data-product-shop="{{ product.shop.name|lower }}"
+                data-product-category="{{ product.category|lower if product.category else '' }}">
+                <div class="product-header">
+                    <div>
+                        <h3 class="product-name">{{ product.name }}</h3>
+                        <div class="product-shop">
+                            <i class="fas fa-store"></i>
+                            {{ product.shop.name }}
+                        </div>
+                    </div>
+                    <div class="product-price">{{ "TZS {:,.0f}".format(product.price) }}</div>
+                </div>
+
+                <div class="product-meta">
+                    {% if product.category %}
+                    <span class="product-category">{{ product.category }}</span>
+                    {% else %}
+                    <span class="product-category">Hakuna kategoria</span>
+                    {% endif %}
+                    <div class="product-stock">
+                        <div class="stock-indicator 
+                            {% if product.quantity <= 0 %}stock-out
+                            {% elif product.quantity <= product.reorder_level %}stock-low
+                            {% elif product.quantity <= product.reorder_level * 2 %}stock-medium
+                            {% else %}stock-high{% endif %}">
+                        </div>
+                        <span>
+                            {% if product.quantity <= 0 %}
+                                Imeisha
+                            {% else %}
+                                {{ product.quantity }} {{ product.unit }}
+                            {% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                {% if product.description %}
+                <p class="product-description">{{ product.description }}</p>
+                {% endif %}
+
+                <div class="product-actions">
+                    <a href="{{ url_for('update_product', product_id=product.id) }}" class="btn-sm">
+                        <i class="fas fa-edit"></i>
+                        Badilisha
+                    </a>
+                    <button class="btn-sm" onclick="quickSale({{ product.id }})" 
+                            {% if product.quantity <= 0 %}disabled{% endif %}>
+                        <i class="fas fa-cart-plus"></i>
+                        Uza
+                    </button>
+                    <label class="bulk-select">
+                        <input type="checkbox" class="product-checkbox" value="{{ product.id }}">
+                        <span style="margin-left: 0.5rem; font-size: 0.8rem;">Chagua</span>
+                    </label>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <!-- Empty State -->
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <i class="fas fa-box-open"></i>
+                </div>
+                <h3 class="empty-title">Hakuna Bidhaa Bado</h3>
+                <p class="empty-description">
+                    Haujaongeza bidhaa yoyote bado. Anza kwa kuongeza bidhaa yako ya kwanza na uendelee na usimamizi wa bidhaa.
+                </p>
+                <a href="{{ url_for('add_product') }}" class="btn-primary">
+                    <i class="fas fa-plus"></i>
+                    Ongeza Bidhaa ya Kwanza
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Load More Button -->
+    {% if products and products|length >= 12 %}
+    <div style="text-align: center; margin-top: 2rem;">
+        <button class="btn-primary" id="load-more" style="padding: 0.75rem 2rem;">
+            <i class="fas fa-redo"></i>
+            Ongeza Zaidi ya Bidhaa
+        </button>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search-products');
+    const shopFilter = document.getElementById('shop-filter');
+    const categoryFilter = document.getElementById('category-filter');
+    const productsContainer = document.getElementById('products-container');
+    const productCards = document.querySelectorAll('.product-card');
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectAllCheckbox = document.getElementById('select-all');
+    const selectedCount = document.getElementById('selected-count');
+    const loadMoreBtn = document.getElementById('load-more');
+    
+    // Search and filter functionality
+    function filterProducts() {
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        const shopValue = shopFilter.value;
+        const categoryValue = categoryFilter.value.toLowerCase();
+        
+        productCards.forEach(card => {
+            const productName = card.dataset.productName;
+            const productShop = card.dataset.productShop;
+            const productCategory = card.dataset.productCategory;
+            
+            const matchesSearch = productName.includes(searchTerm);
+            const matchesShop = !shopValue || card.dataset.productShopId === shopValue;
+            const matchesCategory = !categoryValue || productCategory.includes(categoryValue);
+            
+            if (matchesSearch && matchesShop && matchesCategory) {
+                card.style.display = 'block';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        
+        // Show empty state if no results
+        const visibleCards = Array.from(productCards).filter(card => 
+            card.style.display !== 'none'
+        );
+        
+        if (visibleCards.length === 0 && (searchTerm || shopValue || categoryValue)) {
+            showNoResultsState(searchTerm);
+        } else {
+            removeNoResultsState();
+        }
+    }
+    
+    // Initialize event listeners for filters
+    searchInput.addEventListener('input', filterProducts);
+    shopFilter.addEventListener('change', filterProducts);
+    categoryFilter.addEventListener('change', filterProducts);
+    
+    // Bulk selection functionality
+    function initializeBulkSelection() {
+        const checkboxes = document.querySelectorAll('.product-checkbox');
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateBulkActions);
+        });
+        
+        selectAllCheckbox.addEventListener('change', function() {
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkActions();
+        });
+    }
+    
+    function updateBulkActions() {
+        const selectedProducts = document.querySelectorAll('.product-checkbox:checked');
+        const selectedCountValue = selectedProducts.length;
+        
+        selectedCount.textContent = `${selectedCountValue} bidhaa ${selectedCountValue === 1 ? 'imechaguliwa' : 'zimechaguliwa'}`;
+        
+        if (selectedCountValue > 0) {
+            bulkActions.style.display = 'flex';
+        } else {
+            bulkActions.style.display = 'none';
+        }
+        
+        selectAllCheckbox.checked = selectedCountValue === productCards.length;
+    }
+    
+    function clearSelection() {
+        const checkboxes = document.querySelectorAll('.product-checkbox');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        selectAllCheckbox.checked = false;
+        updateBulkActions();
+    }
+    
+    // Bulk actions functions
+    window.bulkUpdateStock = function() {
+        const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+            .map(checkbox => checkbox.value);
+        
+        if (selectedProducts.length === 0) {
+            window.vendorApp.showNotification('Tafadhali chagua bidhaa angalau moja', 'warning');
+            return;
+        }
+        
+        const newStock = prompt('Weka usimbwaji mpya kwa bidhaa zilizochaguliwa:');
+        if (newStock !== null && !isNaN(newStock) && newStock.trim() !== '') {
+            // Here you would typically make an API call to update stock
+            window.vendorApp.showNotification(`Usimbwaji umesasishwa kwa bidhaa ${selectedProducts.length}`, 'success');
+            clearSelection();
+        }
+    };
+    
+    window.bulkDelete = function() {
+        const selectedProducts = Array.from(document.querySelectorAll('.product-checkbox:checked'))
+            .map(checkbox => checkbox.value);
+        
+        if (selectedProducts.length === 0) {
+            window.vendorApp.showNotification('Tafadhali chagua bidhaa angalau moja', 'warning');
+            return;
+        }
+        
+        if (confirm(`Una uhakika unataka kufuta bidhaa ${selectedProducts.length}? Hatua hii haiwezi kutenduliwa.`)) {
+            // Here you would typically make an API call to delete products
+            window.vendorApp.showNotification(`Bidhaa ${selectedProducts.length} zimefutwa`, 'success');
+            clearSelection();
+        }
+    };
+    
+    // Quick sale functionality
+    window.quickSale = function(productId) {
+        // Find the product card to get shop ID
+        const productCard = document.querySelector(`[data-product-id="${productId}"]`);
+        if (productCard) {
+            const shopId = productCard.dataset.productShopId;
+            window.location.href = `{{ url_for('create_sale') }}?product=${productId}&shop=${shopId}`;
+        }
+    };
+    
+    // Load more functionality
+    if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', function() {
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Inapakua...';
+            this.disabled = true;
+            
+            // Simulate API call for more products
+            setTimeout(() => {
+                this.innerHTML = '<i class="fas fa-redo"></i> Ongeza Zaidi ya Bidhaa';
+                this.disabled = false;
+                window.vendorApp.showNotification('Hakuna bidhaa zaidi kwa sasa', 'info');
+            }, 1500);
+        });
+    }
+    
+    // No results state
+    function showNoResultsState(searchTerm) {
+        removeNoResultsState();
+        
+        const noResultsDiv = document.createElement('div');
+        noResultsDiv.className = 'empty-state';
+        noResultsDiv.innerHTML = `
+            <div class="empty-icon">
+                <i class="fas fa-search"></i>
+            </div>
+            <h3 class="empty-title">Hakuna Matokeo ya "${searchTerm}"</h3>
+            <p class="empty-description">
+                Hakuna bidhaa zilizopatikana zinazolingana na vichujio vyako.
+            </p>
+            <button class="btn-primary" id="clear-filters">
+                <i class="fas fa-times"></i>
+                Ondoa Vichujio Vyote
+            </button>
+        `;
+        
+        productsContainer.appendChild(noResultsDiv);
+        
+        document.getElementById('clear-filters').addEventListener('click', function() {
+            searchInput.value = '';
+            shopFilter.value = '';
+            categoryFilter.value = '';
+            filterProducts();
+        });
+    }
+    
+    function removeNoResultsState() {
+        const existingNoResults = productsContainer.querySelector('.empty-state');
+        if (existingNoResults && !existingNoResults.querySelector('.empty-icon .fa-box-open')) {
+            existingNoResults.remove();
+        }
+    }
+    
+    // Initialize bulk selection
+    initializeBulkSelection();
+    
+    // Add data attributes for shop IDs
+    productCards.forEach(card => {
+        // This would typically come from your data, for now we'll add a dummy attribute
+        card.dataset.productShopId = "1"; // This should be dynamic from your backend
+    });
+});
+</script>
+{% endblock %}

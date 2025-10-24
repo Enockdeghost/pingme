@@ -1,0 +1,800 @@
+{% extends "base.html" %}
+
+{% block title %}{{ shop.name }} - VendorPro{% endblock %}
+
+{% block extra_css %}
+<style>
+.shop-detail {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
+}
+
+/* Shop Header */
+.shop-header {
+    background: var(--card-bg);
+    border-radius: 15px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.shop-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--primary) 100%);
+}
+
+.shop-info {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 2rem;
+    align-items: start;
+}
+
+.shop-main-info h1 {
+    font-size: 2.2rem;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.shop-meta {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.shop-category {
+    background: var(--accent);
+    color: white;
+    padding: 0.4rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.shop-location {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.shop-description {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 600px;
+}
+
+.shop-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    min-width: 250px;
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1rem;
+    background: var(--background);
+    border-radius: 10px;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent);
+    display: block;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    display: block;
+}
+
+/* Tabs Navigation */
+.tabs-container {
+    background: var(--card-bg);
+    border-radius: 15px;
+    margin-bottom: 2rem;
+    overflow: hidden;
+}
+
+.tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--card-bg);
+}
+
+.tab-btn {
+    padding: 1rem 1.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--background);
+}
+
+.tab-btn.active {
+    color: var(--accent);
+}
+
+.tab-btn.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--accent);
+}
+
+.tab-content {
+    padding: 2rem;
+}
+
+.tab-pane {
+    display: none;
+}
+
+.tab-pane.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* Products Grid */
+.products-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.product-card {
+    background: var(--background);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.product-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.product-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.product-name {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.product-price {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+
+.product-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.product-stock {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.stock-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.stock-low { background: var(--error); }
+.stock-medium { background: var(--warning); }
+.stock-high { background: var(--success); }
+
+.product-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-primary);
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.btn-sm:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+}
+
+/* Sales Table */
+.sales-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--background);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.sales-table th,
+.sales-table td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.sales-table th {
+    background: var(--card-bg);
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.sales-table tr:last-child td {
+    border-bottom: none;
+}
+
+.sales-table tr:hover {
+    background: var(--border-color);
+}
+
+.status-badge {
+    padding: 0.3rem 0.8rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-completed {
+    background: var(--success);
+    color: white;
+}
+
+.status-pending {
+    background: var(--warning);
+    color: white;
+}
+
+.status-cancelled {
+    background: var(--error);
+    color: white;
+}
+
+/* Quick Actions */
+.quick-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.action-card {
+    background: var(--card-bg);
+    padding: 1.5rem;
+    border-radius: 12px;
+    text-align: center;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.action-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.action-icon {
+    font-size: 2rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+}
+
+.action-title {
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.action-description {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* Empty States */
+.empty-state {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-secondary);
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 1.2rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .shop-detail {
+        padding: 0 1rem;
+    }
+    
+    .shop-info {
+        grid-template-columns: 1fr;
+    }
+    
+    .shop-stats {
+        grid-template-columns: repeat(3, 1fr);
+        min-width: auto;
+    }
+    
+    .tabs-header {
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        flex: 1;
+        min-width: 120px;
+        text-align: center;
+    }
+    
+    .products-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .products-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .sales-table {
+        display: block;
+        overflow-x: auto;
+    }
+}
+
+@media (max-width: 480px) {
+    .shop-header {
+        padding: 1.5rem;
+    }
+    
+    .shop-stats {
+        grid-template-columns: 1fr;
+    }
+    
+    .tab-content {
+        padding: 1rem;
+    }
+    
+    .quick-actions {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="shop-detail">
+    <!-- Shop Header -->
+    <div class="shop-header">
+        <div class="shop-info">
+            <div class="shop-main-info">
+                <h1>{{ shop.name }}</h1>
+                <div class="shop-meta">
+                    <span class="shop-category">
+                        {% if shop.category == 'duka' %}
+                            Duka
+                        {% elif shop.category == 'kiosk' %}
+                            Kioski
+                        {% elif shop.category == 'market_stall' %}
+                            Kibanda
+                        {% else %}
+                            {{ shop.category|title }}
+                        {% endif %}
+                    </span>
+                    <div class="shop-location">
+                        <i class="fas fa-map-marker-alt"></i>
+                        {{ shop.location or "Mahali haijajazwa" }}
+                    </div>
+                </div>
+                {% if shop.description %}
+                <p class="shop-description">{{ shop.description }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="shop-stats">
+                <div class="stat-card">
+                    <span class="stat-value">{{ products|length }}</span>
+                    <span class="stat-label">Bidhaa</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">{{ sales|length }}</span>
+                    <span class="stat-label">Mauzo</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-value">
+                        {% set total_revenue = sales|sum(attribute='total_amount') %}
+                        {{ "TZS {:,.0f}".format(total_revenue) }}
+                    </span>
+                    <span class="stat-label">Jumla ya Mauzo</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="quick-actions">
+        <a href="{{ url_for('create_sale') }}?shop={{ shop.id }}" class="action-card">
+            <div class="action-icon">
+                <i class="fas fa-cash-register"></i>
+            </div>
+            <div class="action-title">Uza Bidhaa</div>
+            <div class="action-description">Anza mauzo mapya kutoka dukani</div>
+        </a>
+        
+        <a href="{{ url_for('add_product') }}?shop={{ shop.id }}" class="action-card">
+            <div class="action-icon">
+                <i class="fas fa-box"></i>
+            </div>
+            <div class="action-title">Ongeza Bidhaa</div>
+            <div class="action-description">Sajili bidhaa mpya kwenye duka</div>
+        </a>
+        
+        <a href="{{ url_for('reports') }}?shop={{ shop.id }}" class="action-card">
+            <div class="action-icon">
+                <i class="fas fa-chart-bar"></i>
+            </div>
+            <div class="action-title">Tazama Ripoti</div>
+            <div class="action-description">Angalia uchambuzi wa mauzo ya duka</div>
+        </a>
+    </div>
+
+    <!-- Tabs Navigation -->
+    <div class="tabs-container">
+        <div class="tabs-header">
+            <button class="tab-btn active" data-tab="products">
+                <i class="fas fa-boxes"></i>
+                Bidhaa ({{ products|length }})
+            </button>
+            <button class="tab-btn" data-tab="sales">
+                <i class="fas fa-shopping-cart"></i>
+                Mauzo ({{ sales|length }})
+            </button>
+            <button class="tab-btn" data-tab="analytics">
+                <i class="fas fa-chart-line"></i>
+                Uchambuzi
+            </button>
+        </div>
+
+        <div class="tab-content">
+            <!-- Products Tab -->
+            <div class="tab-pane active" id="products-tab">
+                <div class="products-header">
+                    <h2>Bidhaa Zote</h2>
+                    <a href="{{ url_for('add_product') }}?shop={{ shop.id }}" class="btn-primary">
+                        <i class="fas fa-plus"></i>
+                        Ongeza Bidhaa
+                    </a>
+                </div>
+
+                {% if products %}
+                <div class="products-grid">
+                    {% for product in products %}
+                    <div class="product-card">
+                        <div class="product-header">
+                            <div>
+                                <div class="product-name">{{ product.name }}</div>
+                                <div class="product-meta">
+                                    <span>{{ product.category or "Hakuna kategoria" }}</span>
+                                    <span>{{ product.unit }}</span>
+                                </div>
+                            </div>
+                            <div class="product-price">{{ "TZS {:,.0f}".format(product.price) }}</div>
+                        </div>
+                        
+                        <div class="product-meta">
+                            <div class="product-stock">
+                                <div class="stock-indicator 
+                                    {% if product.quantity <= product.reorder_level %}stock-low
+                                    {% elif product.quantity <= product.reorder_level * 2 %}stock-medium
+                                    {% else %}stock-high{% endif %}">
+                                </div>
+                                <span>{{ product.quantity }} {{ product.unit }} zimebaki</span>
+                            </div>
+                        </div>
+
+                        <div class="product-actions">
+                            <a href="{{ url_for('update_product', product_id=product.id) }}" class="btn-sm">
+                                <i class="fas fa-edit"></i>
+                                Badilisha
+                            </a>
+                            <button class="btn-sm" onclick="quickSale({{ product.id }})">
+                                <i class="fas fa-cart-plus"></i>
+                                Uza
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-box-open"></i>
+                    </div>
+                    <h3 class="empty-title">Hakuna Bidhaa Bado</h3>
+                    <p>Haujaongeza bidhaa yoyote kwenye duka hili. Anza kwa kuongeza bidhaa yako ya kwanza.</p>
+                    <a href="{{ url_for('add_product') }}?shop={{ shop.id }}" class="btn-primary" style="margin-top: 1rem;">
+                        <i class="fas fa-plus"></i>
+                        Ongeza Bidhaa ya Kwanza
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Sales Tab -->
+            <div class="tab-pane" id="sales-tab">
+                <div class="products-header">
+                    <h2>Historia ya Mauzo</h2>
+                </div>
+
+                {% if sales %}
+                <div class="table-responsive">
+                    <table class="sales-table">
+                        <thead>
+                            <tr>
+                                <th>Namba ya Mauzo</th>
+                                <th>Tarehe</th>
+                                <th>Mteja</th>
+                                <th>Kiasi</th>
+                                <th>Njia ya Malipo</th>
+                                <th>Hali</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sale in sales %}
+                            <tr>
+                                <td>
+                                    <strong>{{ sale.sale_number }}</strong>
+                                </td>
+                                <td>{{ sale.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                <td>{{ sale.customer_name or "Mteja wa Kawaida" }}</td>
+                                <td><strong>{{ "TZS {:,.0f}".format(sale.total_amount) }}</strong></td>
+                                <td>{{ sale.payment_method|title }}</td>
+                                <td>
+                                    <span class="status-badge status-{{ sale.status }}">
+                                        {% if sale.status == 'completed' %}
+                                            Imekamilika
+                                        {% elif sale.status == 'pending' %}
+                                            Inasubiri
+                                        {% else %}
+                                            Imeshindwa
+                                        {% endif %}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <h3 class="empty-title">Hakuna Mauzo Bado</h3>
+                    <p>Haujafanya mauzo yoyote kutoka kwenye duka hili. Anza mauzo ya kwanza leo!</p>
+                    <a href="{{ url_for('create_sale') }}?shop={{ shop.id }}" class="btn-primary" style="margin-top: 1rem;">
+                        <i class="fas fa-cash-register"></i>
+                        Anza Mauzo ya Kwanza
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Analytics Tab -->
+            <div class="tab-pane" id="analytics-tab">
+                <div class="products-header">
+                    <h2>Uchambuzi wa Duka</h2>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+                    <div class="stat-card" style="text-align: center;">
+                        <span class="stat-value">
+                            {% set total_revenue = sales|sum(attribute='total_amount') %}
+                            {{ "TZS {:,.0f}".format(total_revenue) }}
+                        </span>
+                        <span class="stat-label">Jumla ya Mapato</span>
+                    </div>
+                    
+                    <div class="stat-card" style="text-align: center;">
+                        <span class="stat-value">{{ sales|length }}</span>
+                        <span class="stat-label">Jumla ya Mauzo</span>
+                    </div>
+                    
+                    <div class="stat-card" style="text-align: center;">
+                        <span class="stat-value">
+                            {% if sales|length > 0 %}
+                                {{ "TZS {:,.0f}".format(total_revenue / sales|length) }}
+                            {% else %}
+                                0
+                            {% endif %}
+                        </span>
+                        <span class="stat-label">Wastani wa Mauzo</span>
+                    </div>
+                </div>
+
+                <!-- Top Products -->
+                <h3 style="margin-bottom: 1rem;">Bidhaa Bora</h3>
+                {% if products %}
+                <div class="products-grid">
+                    {% for product in products[:3] %}
+                    <div class="product-card">
+                        <div class="product-header">
+                            <div class="product-name">{{ product.name }}</div>
+                            <div class="product-price">{{ "TZS {:,.0f}".format(product.price) }}</div>
+                        </div>
+                        <div class="product-meta">
+                            <span>{{ product.quantity }} {{ product.unit }} zimebaki</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state" style="padding: 2rem;">
+                    <p>Hakuna data ya uchambuzi inayopatikana bado.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Tab functionality
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tabId = this.dataset.tab;
+            
+            // Update active tab button
+            tabBtns.forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Show active tab pane
+            tabPanes.forEach(pane => pane.classList.remove('active'));
+            document.getElementById(`${tabId}-tab`).classList.add('active');
+        });
+    });
+    
+    // Quick sale functionality
+    window.quickSale = function(productId) {
+        // Redirect to sales page with product pre-selected
+        window.location.href = `{{ url_for('create_sale') }}?shop={{ shop.id }}&product=${productId}`;
+    };
+    
+    // Load analytics data
+    loadAnalyticsData();
+});
+
+async function loadAnalyticsData() {
+    try {
+        // You can add API calls here to fetch detailed analytics
+        console.log('Loading analytics data for shop {{ shop.id }}');
+    } catch (error) {
+        console.error('Failed to load analytics data:', error);
+    }
+}
+
+// Real-time updates for stock levels (optional)
+function startRealTimeUpdates() {
+    // This could be implemented with WebSockets for real-time stock updates
+    setInterval(async () => {
+        try {
+            const response = await fetch(`/api/shop/{{ shop.id }}/products`);
+            const products = await response.json();
+            
+            // Update product cards with new stock data
+            updateProductCards(products);
+        } catch (error) {
+            console.error('Failed to update products:', error);
+        }
+    }, 30000); // Update every 30 seconds
+}
+
+function updateProductCards(products) {
+    products.forEach(product => {
+        const productCard = document.querySelector(`[data-product-id="${product.id}"]`);
+        if (productCard) {
+            const stockElement = productCard.querySelector('.product-stock span');
+            const stockIndicator = productCard.querySelector('.stock-indicator');
+            
+            if (stockElement) {
+                stockElement.textContent = `${product.quantity} ${product.unit} zimebaki`;
+            }
+            
+            if (stockIndicator) {
+                stockIndicator.className = 'stock-indicator';
+                if (product.quantity <= product.reorder_level) {
+                    stockIndicator.classList.add('stock-low');
+                } else if (product.quantity <= product.reorder_level * 2) {
+                    stockIndicator.classList.add('stock-medium');
+                } else {
+                    stockIndicator.classList.add('stock-high');
+                }
+            }
+        }
+    });
+}
+
+// Initialize real-time updates if needed
+// startRealTimeUpdates();
+</script>
+{% endblock %}
